@@ -7,6 +7,10 @@ import {
   type SortOption,
   type ConditionFilter,
 } from "./browse.js";
+import {
+  getCategorySuggestions,
+  getCategorySubtree,
+} from "./taxonomy.js";
 
 const configSchema = Type.Object({
   credentialsPath: Type.String({
@@ -199,6 +203,71 @@ export default defineToolPlugin({
           "EBAY_US";
         return getItem(cfg, {
           itemId: params.itemId,
+          marketplaceId,
+        });
+      },
+    }),
+    tool({
+      name: "ebay_research_get_category_suggestions",
+      label: "Suggest eBay Categories",
+      description:
+        "LOOK UP / FIND / SUGGEST the eBay category an item belongs in by a free-text query. ALWAYS call this tool — do not narrate, do not guess a category id — whenever the operator asks: what category does X go in on eBay, what category is X listed in, what's the eBay category for X, find the right eBay category for X, where should I list X. Returns ranked suggestions; each suggestion has a `categoryId` (the value the seller plugin's create_offer needs), a `categoryName`, and an `ancestors` chain showing the full path (e.g. Cameras & Photo → Digital Cameras → DSLR Cameras). Pair with `ebay_research_get_category_subtree` to explore siblings of a suggested category.",
+      parameters: Type.Object({
+        query: Type.String({
+          description:
+            "Free-text describing the item. Examples: 'nikon d750', 'mens vintage leather jacket', 'iphone 14 pro 256gb'.",
+        }),
+        marketplaceId: Type.Optional(
+          Type.String({
+            description: "eBay marketplace id (default EBAY_US).",
+          })
+        ),
+        limit: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: 50,
+            default: 10,
+            description: "Max number of category suggestions to return (default 10).",
+          })
+        ),
+      }),
+      async execute(params, config) {
+        const cfg = authConfig(config);
+        const marketplaceId =
+          params.marketplaceId ??
+          (config as { defaultMarketplaceId?: string }).defaultMarketplaceId ??
+          "EBAY_US";
+        return getCategorySuggestions(cfg, {
+          query: params.query,
+          marketplaceId,
+          limit: params.limit,
+        });
+      },
+    }),
+    tool({
+      name: "ebay_research_get_category_subtree",
+      label: "Get eBay Category Subtree",
+      description:
+        "READ / FETCH / VIEW the immediate children of an eBay category by category_id. Use to drill DOWN one level (e.g. given Cameras & Photo, list Digital Cameras / Film Cameras / Lenses ...). Each child node has its own categoryId for further drill-down, a categoryName, and an `isLeaf` flag (true means a sellable leaf category, which is what the seller plugin's create_offer requires). Get a starting categoryId from `ebay_research_get_category_suggestions` or from a parent category's children list.",
+      parameters: Type.Object({
+        categoryId: Type.String({
+          description:
+            "eBay category id (e.g. '625' for Cameras & Photo). Get from get_category_suggestions or from a parent subtree's children.",
+        }),
+        marketplaceId: Type.Optional(
+          Type.String({
+            description: "eBay marketplace id (default EBAY_US).",
+          })
+        ),
+      }),
+      async execute(params, config) {
+        const cfg = authConfig(config);
+        const marketplaceId =
+          params.marketplaceId ??
+          (config as { defaultMarketplaceId?: string }).defaultMarketplaceId ??
+          "EBAY_US";
+        return getCategorySubtree(cfg, {
+          categoryId: params.categoryId,
           marketplaceId,
         });
       },

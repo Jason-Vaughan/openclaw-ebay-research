@@ -20,9 +20,9 @@ describe("plugin surface", () => {
     expect((plugin as { id: string }).id).toBe("tangleclaw-ebay-research");
   });
 
-  it("registers exactly 3 tools in v0.1", () => {
+  it("registers exactly 5 tools in v0.1 (auth + browse x2 + taxonomy x2)", () => {
     const tools = collectTools();
-    expect(tools).toHaveLength(3);
+    expect(tools).toHaveLength(5);
   });
 
   it("registers all expected tool names", () => {
@@ -30,6 +30,8 @@ describe("plugin surface", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       "ebay_research_auth_status",
+      "ebay_research_get_category_subtree",
+      "ebay_research_get_category_suggestions",
       "ebay_research_get_item",
       "ebay_research_search_active_listings",
     ]);

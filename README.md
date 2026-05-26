@@ -24,6 +24,8 @@ Every search result includes the canonical eBay `itemWebUrl`, so the agent can h
 | `ebay_research_auth_status` | Returns app-token state, environment (sandbox/production), expiry. Never echoes the token itself. |
 | `ebay_research_search_active_listings` | Search current live listings. Filters: sort (price_asc/price_desc/best_match), condition, price_min/max, marketplace_id, limit, offset. Returns title, price, condition, seller, item_id, **itemWebUrl**. |
 | `ebay_research_get_item` | Fetch full detail for one item by item_id. Includes itemWebUrl, seller info, shipping, full description. |
+| `ebay_research_get_category_suggestions` | "What category does this go in on eBay?" — free-text query → ranked list of suggestions with `categoryId`, `categoryName`, and full ancestor chain. The `categoryId` is exactly what `openclaw-ebay-seller`'s `create_offer` needs. |
+| `ebay_research_get_category_subtree` | Drill down one level into a category by category_id. Each child node carries its own categoryId for further drill-down plus an `isLeaf` flag (sellable leaves are what `create_offer` requires). |
 
 ## Install
 

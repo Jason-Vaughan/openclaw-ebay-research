@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { access } from "node:fs/promises";
 import { getAppToken, getAuthStatus } from "./auth.js";
 import { searchActiveListings } from "./browse.js";
+import { getCategorySuggestions, getCategorySubtree } from "./taxonomy.js";
 
 const LIVE_ENABLED = process.env.RUN_LIVE_TESTS === "1";
 
@@ -53,6 +54,33 @@ describeIfLive("live eBay Browse API integration", () => {
     const first = result.items[0];
     expect(first.itemId).toBeTruthy();
     expect(first.itemWebUrl ?? "").toMatch(/^https?:\/\//);
+  });
+
+  it("can suggest a category for a common query", async () => {
+    if (!(await credentialsAvailable())) return;
+    const result = await getCategorySuggestions(
+      { credentialsPath: credsPath, tokenPath },
+      { query: "nikon d750", limit: 3 }
+    );
+    expect(result.treeId).toBeTruthy();
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0].categoryId).toBeTruthy();
+    expect(result.suggestions[0].categoryName).toBeTruthy();
+  });
+
+  it("can fetch a subtree for a suggested category", async () => {
+    if (!(await credentialsAvailable())) return;
+    const suggested = await getCategorySuggestions(
+      { credentialsPath: credsPath, tokenPath },
+      { query: "camera", limit: 1 }
+    );
+    if (suggested.suggestions.length === 0) return;
+    const top = suggested.suggestions[0].ancestors[0]?.categoryId ?? suggested.suggestions[0].categoryId;
+    const subtree = await getCategorySubtree(
+      { credentialsPath: credsPath, tokenPath },
+      { categoryId: top }
+    );
+    expect(subtree.root.categoryId).toBe(top);
   });
 });
 

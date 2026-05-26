@@ -69,4 +69,23 @@ describe("description quality", () => {
     expect(status).toBeTruthy();
     expect(status!.description.toLowerCase()).toContain("never echoes the token");
   });
+
+  it("category-suggestions description references the seller-plugin handoff (categoryId)", () => {
+    const tools = collectTools();
+    const sug = tools.find(
+      (t) => t.name === "ebay_research_get_category_suggestions"
+    );
+    expect(sug).toBeTruthy();
+    expect(sug!.description.toLowerCase()).toContain("categoryid");
+    expect(sug!.description.toLowerCase()).toContain("ancestors");
+  });
+
+  it("category-subtree description mentions the isLeaf flag (which create_offer requires)", () => {
+    const tools = collectTools();
+    const sub = tools.find(
+      (t) => t.name === "ebay_research_get_category_subtree"
+    );
+    expect(sub).toBeTruthy();
+    expect(sub!.description.toLowerCase()).toContain("isleaf");
+  });
 });

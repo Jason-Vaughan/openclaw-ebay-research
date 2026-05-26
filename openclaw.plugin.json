@@ -37,7 +37,9 @@
     "tools": [
       "ebay_research_auth_status",
       "ebay_research_search_active_listings",
-      "ebay_research_get_item"
+      "ebay_research_get_item",
+      "ebay_research_get_category_suggestions",
+      "ebay_research_get_category_subtree"
     ]
   }
 }

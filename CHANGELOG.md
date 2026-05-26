@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Chunk R2 — Taxonomy API tools (2026-05-26).** Two new read tools land:
+  - `ebay_research_get_category_suggestions` — free-text query → ranked category suggestions with `categoryId` + `categoryName` + full ancestor chain. The categoryId is exactly what the sister seller plugin's `create_offer` needs.
+  - `ebay_research_get_category_subtree` — drill down one level into a category by category_id. Each child node carries an `isLeaf` flag (sellable leaves are what `create_offer` requires).
+  - `src/taxonomy.ts` adds an internal `getDefaultCategoryTreeId` that caches the per-marketplace tree id for the process lifetime (the tree id is stable; restart the gateway if eBay ever bumps it).
+  - **Plan deviation noted:** the build plan called for `ebay_research_get_categories` (top-level tree fetch) but the full eBay category tree is several MB; ranked suggestions via the Taxonomy API's `get_category_suggestions` endpoint is materially more useful for both buyer-side ("what category does X belong in?") and seller-side ("what categoryId should create_offer use?") flows. Documented here for traceability.
 - Initial scaffold (TypeScript, vitest, openclaw plugin SDK).
 - `src/auth.ts`: eBay `client_credentials` OAuth flow with app-token cache + auto-refresh + Sandbox/Production URL switching.
 - `src/browse.ts`: eBay Browse API HTTP client (typed responses + error normalization).
