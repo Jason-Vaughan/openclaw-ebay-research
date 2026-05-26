@@ -1,0 +1,43 @@
+{
+  "id": "tangleclaw-ebay-research",
+  "name": "TangleClaw eBay Research",
+  "description": "OpenClaw plugin for read-only eBay market research — search current listings, fetch item detail, look up sold-listing history (gated by eBay Marketplace Insights access). Direct REST via client_credentials OAuth (app token only — no seller account, no user OAuth, no MCP). Surfaces clickable itemWebUrl on every result.",
+  "version": "0.1.0",
+  "activation": {
+    "onStartup": true
+  },
+  "skills": [
+    "./skills"
+  ],
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "credentialsPath",
+      "tokenPath"
+    ],
+    "properties": {
+      "credentialsPath": {
+        "type": "string",
+        "default": "~/.openclaw/secrets/ebay-research-credentials.json",
+        "description": "Path to the eBay app credentials JSON. Required keys: client_id, cert_id, environment ('sandbox' or 'production')."
+      },
+      "tokenPath": {
+        "type": "string",
+        "default": "~/.openclaw/secrets/ebay-research-app-token.json",
+        "description": "Path where the cached app token is read + written (auto-refreshed when expired)."
+      },
+      "defaultMarketplaceId": {
+        "type": "string",
+        "default": "EBAY_US",
+        "description": "Marketplace used when the agent doesn't specify one (e.g., EBAY_US, EBAY_GB, EBAY_DE)."
+      }
+    }
+  },
+  "contracts": {
+    "tools": [
+      "ebay_research_auth_status",
+      "ebay_research_search_active_listings",
+      "ebay_research_get_item"
+    ]
+  }
+}

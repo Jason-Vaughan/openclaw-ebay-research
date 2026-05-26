@@ -1,0 +1,65 @@
+import { describe, it, expect } from "vitest";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { access } from "node:fs/promises";
+import { getAppToken, getAuthStatus } from "./auth.js";
+import { searchActiveListings } from "./browse.js";
+
+const LIVE_ENABLED = process.env.RUN_LIVE_TESTS === "1";
+
+const credsPath = process.env.EBAY_RESEARCH_CREDENTIALS_PATH
+  ? process.env.EBAY_RESEARCH_CREDENTIALS_PATH
+  : join(homedir(), ".openclaw/secrets/ebay-research-credentials.json");
+const tokenPath = process.env.EBAY_RESEARCH_TOKEN_PATH
+  ? process.env.EBAY_RESEARCH_TOKEN_PATH
+  : join(homedir(), ".openclaw/secrets/ebay-research-app-token.json");
+
+async function credentialsAvailable(): Promise<boolean> {
+  try {
+    await access(credsPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const describeIfLive = LIVE_ENABLED ? describe : describe.skip;
+
+describeIfLive("live eBay Browse API integration", () => {
+  it("can fetch a real app token", async () => {
+    if (!(await credentialsAvailable())) {
+      console.warn(`Skipping: credentials not at ${credsPath}`);
+      return;
+    }
+    const token = await getAppToken({ credentialsPath: credsPath, tokenPath });
+    expect(token.access_token.length).toBeGreaterThan(10);
+    expect(["sandbox", "production"]).toContain(token.environment);
+  });
+
+  it("reports connected via getAuthStatus", async () => {
+    if (!(await credentialsAvailable())) return;
+    const status = await getAuthStatus({ credentialsPath: credsPath, tokenPath });
+    expect(status.credentials_present).toBe(true);
+    expect(status.connected).toBe(true);
+  });
+
+  it("can search a common query and get at least one result with itemWebUrl", async () => {
+    if (!(await credentialsAvailable())) return;
+    const result = await searchActiveListings(
+      { credentialsPath: credsPath, tokenPath },
+      { query: "laptop", limit: 5 }
+    );
+    expect(result.items.length).toBeGreaterThan(0);
+    const first = result.items[0];
+    expect(first.itemId).toBeTruthy();
+    expect(first.itemWebUrl ?? "").toMatch(/^https?:\/\//);
+  });
+});
+
+if (!LIVE_ENABLED) {
+  describe("live tests skipped", () => {
+    it("set RUN_LIVE_TESTS=1 to enable", () => {
+      expect(LIVE_ENABLED).toBe(false);
+    });
+  });
+}

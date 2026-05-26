@@ -1,0 +1,66 @@
+{
+  "name": "@tangleclaw/openclaw-ebay-research",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for eBay read-only market research — search current listings, fetch item detail, look up categories, query sold-listing history (gated by eBay Marketplace Insights access). Direct REST calls via client_credentials OAuth (app token only, no seller account, no user OAuth, no MCP). Surfaces clickable itemWebUrl on every result so agents can hand operators links.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jason Vaughan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jason-Vaughan/openclaw-ebay-research.git"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "clawhub",
+    "ebay",
+    "ebay-api",
+    "ebay-browse",
+    "ebay-research",
+    "marketplace",
+    "marketplace-research",
+    "price-research",
+    "pricing",
+    "deal-finder",
+    "comparison-shopping",
+    "browse-api",
+    "taxonomy-api",
+    "marketplace-insights",
+    "oauth",
+    "oauth2",
+    "client-credentials",
+    "ai-agent",
+    "agent-tools",
+    "llm-tools",
+    "tangleclaw"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "plugin:build": "npm run build && openclaw plugins build --entry ./dist/index.js",
+    "plugin:validate": "npm run build && openclaw plugins validate --entry ./dist/index.js",
+    "test": "vitest run"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "dependencies": {
+    "typebox": "^1.1.38"
+  },
+  "devDependencies": {
+    "openclaw": "latest",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "@types/node": "^22.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  }
+}
