@@ -107,7 +107,8 @@ async function callEbayRest<T>(
           Accept: "application/json",
         },
       }),
-      `ebay.taxonomy ${path}`
+      `ebay.taxonomy ${path}`,
+      config.httpTimeoutMs
     );
 
   let res = await doRequest(token.access_token, apiBaseUrl(token.environment));

@@ -32,16 +32,30 @@ export interface SoldItem {
   seller?: { username?: string; feedbackPercentage?: string };
 }
 
-export interface SoldHistoryStats {
+export interface SoldHistoryStatsBucket {
   sampleSize: number;
-  total: number;
-  currency?: string;
   min?: number;
   max?: number;
   mean?: number;
   median?: number;
   p25?: number;
   p75?: number;
+}
+
+export interface SoldHistoryStats {
+  // Items with a usable price across ALL currencies in the result set.
+  sampleSize: number;
+  // eBay's reported total match count for the query (currency-agnostic).
+  total: number;
+  // Marketplace's primary currency — derived from marketplaceId, not from
+  // the items. Use this to tell the operator what currency `primary` is in.
+  primaryCurrency: string;
+  // Stats for items priced in primaryCurrency. `sampleSize: 0` (no other
+  // fields) when none of the results matched primaryCurrency.
+  primary: SoldHistoryStatsBucket;
+  // Per-currency breakdown for every currency observed in the result set,
+  // including primaryCurrency when present. Surface when results mix.
+  byCurrency: Record<string, SoldHistoryStatsBucket>;
 }
 
 export interface SoldHistoryResult {
@@ -109,32 +123,60 @@ function quantile(sorted: number[], q: number): number | undefined {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-function computeStats(items: SoldItem[], total: number): SoldHistoryStats {
-  const prices: number[] = [];
-  let currency: string | undefined;
+function round2(n: number | undefined): number | undefined {
+  return n === undefined ? undefined : Math.round(n * 100) / 100;
+}
+
+function buildBucket(sortedPrices: number[]): SoldHistoryStatsBucket {
+  const bucket: SoldHistoryStatsBucket = { sampleSize: sortedPrices.length };
+  if (sortedPrices.length > 0) {
+    bucket.min = round2(sortedPrices[0]);
+    bucket.max = round2(sortedPrices[sortedPrices.length - 1]);
+    bucket.mean = round2(
+      sortedPrices.reduce((acc, v) => acc + v, 0) / sortedPrices.length
+    );
+    bucket.median = round2(quantile(sortedPrices, 0.5));
+    bucket.p25 = round2(quantile(sortedPrices, 0.25));
+    bucket.p75 = round2(quantile(sortedPrices, 0.75));
+  }
+  return bucket;
+}
+
+function computeStats(
+  items: SoldItem[],
+  total: number,
+  marketplaceId: string
+): SoldHistoryStats {
+  const primaryCurrency = currencyForMarketplace(marketplaceId);
+
+  const pricesByCurrency: Record<string, number[]> = {};
   for (const item of items) {
     if (!item.soldPrice) continue;
     const v = parseFloat(item.soldPrice.value);
     if (!Number.isFinite(v)) continue;
-    prices.push(v);
-    if (!currency) currency = item.soldPrice.currency;
+    const currency = item.soldPrice.currency || primaryCurrency;
+    if (!pricesByCurrency[currency]) pricesByCurrency[currency] = [];
+    pricesByCurrency[currency].push(v);
   }
-  prices.sort((a, b) => a - b);
-  const stats: SoldHistoryStats = {
-    sampleSize: prices.length,
+
+  const byCurrency: Record<string, SoldHistoryStatsBucket> = {};
+  let totalSampleSize = 0;
+  for (const [currency, prices] of Object.entries(pricesByCurrency)) {
+    prices.sort((a, b) => a - b);
+    byCurrency[currency] = buildBucket(prices);
+    totalSampleSize += prices.length;
+  }
+
+  const primary: SoldHistoryStatsBucket =
+    byCurrency[primaryCurrency] ?? { sampleSize: 0 };
+
+  return {
+    sampleSize: totalSampleSize,
     total,
-    currency,
+    primaryCurrency,
+    primary,
+    byCurrency,
   };
-  if (prices.length > 0) {
-    stats.min = prices[0];
-    stats.max = prices[prices.length - 1];
-    stats.mean =
-      prices.reduce((acc, v) => acc + v, 0) / prices.length;
-    stats.median = quantile(prices, 0.5);
-    stats.p25 = quantile(prices, 0.25);
-    stats.p75 = quantile(prices, 0.75);
-  }
-  return stats;
 }
 
 interface RawInsightsResponse {
@@ -181,7 +223,8 @@ async function callInsightsRest<T>(
           Accept: "application/json",
         },
       }),
-      `ebay.insights ${path}`
+      `ebay.insights ${path}`,
+      config.httpTimeoutMs
     );
   let res = await doRequest(token.access_token, apiBaseUrl(token.environment));
   if (res.status === 401) {
@@ -286,7 +329,7 @@ export async function getSoldHistory(
   }));
 
   const total = raw.total ?? items.length;
-  const stats = computeStats(items, total);
+  const stats = computeStats(items, total, marketplaceId);
 
   return {
     query: params.query,

@@ -12,6 +12,7 @@ import {
   currencyForMarketplace,
   fileModeIsRestrictive,
   withTimeout,
+  redactAuthHeaders,
   DEFAULT_SCOPE,
   INSIGHTS_SCOPE,
 } from "./auth.js";
@@ -566,6 +567,153 @@ describe("withTimeout", () => {
     await expect(withTimeout(hanging, "slow-thing", 25)).rejects.toThrow(
       /slow-thing timed out after 25ms/
     );
+  });
+});
+
+describe("redactAuthHeaders", () => {
+  it("redacts a Basic credential blob", () => {
+    const raw = "got headers: Authorization: Basic Y2lkOnNlY3JldA== and more";
+    expect(redactAuthHeaders(raw)).toBe(
+      "got headers: Authorization: Basic [REDACTED] and more"
+    );
+  });
+  it("redacts a Bearer token blob", () => {
+    const raw = "token=Bearer eyJhbGciOi.payload-stuff.sig_-+/=";
+    expect(redactAuthHeaders(raw)).toBe("token=Bearer [REDACTED]");
+  });
+  it("redacts multiple Basic/Bearer occurrences in one string", () => {
+    const raw = "Basic AAA== and Bearer xyz and Basic BBB==";
+    expect(redactAuthHeaders(raw)).toBe(
+      "Basic [REDACTED] and Bearer [REDACTED] and Basic [REDACTED]"
+    );
+  });
+  it("leaves text without credentials untouched", () => {
+    expect(redactAuthHeaders("just a plain error message")).toBe(
+      "just a plain error message"
+    );
+  });
+});
+
+describe("requestAppToken redacts credential bytes from non-JSON error bodies", () => {
+  it("never includes Basic-auth bytes in the thrown error message", async () => {
+    const basicBlob = Buffer.from("cid:secret").toString("base64");
+    const fetchMock = (async () =>
+      new Response(
+        `<html>echoed back: Authorization: Basic ${basicBlob} oops</html>`,
+        { status: 500, statusText: "Server Error" }
+      )) as unknown as typeof fetch;
+    let caught: Error | undefined;
+    try {
+      await requestAppToken(
+        { client_id: "cid", cert_id: "secret", environment: "sandbox" },
+        fetchMock
+      );
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught!.message).not.toContain(basicBlob);
+    expect(caught!.message).toContain("[REDACTED]");
+  });
+
+  it("never includes a Bearer token blob in the thrown error message", async () => {
+    const bearerBlob = "eyJzaG91bGRudC1iZS1pbi1sb2dz";
+    const fetchMock = (async () =>
+      new Response(`echoed Bearer ${bearerBlob} into the response body`, {
+        status: 500,
+        statusText: "Server Error",
+      })) as unknown as typeof fetch;
+    let caught: Error | undefined;
+    try {
+      await requestAppToken(
+        { client_id: "cid", cert_id: "secret", environment: "sandbox" },
+        fetchMock
+      );
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught!.message).not.toContain(bearerBlob);
+    expect(caught!.message).toContain("[REDACTED]");
+  });
+});
+
+describe("AuthConfig httpTimeoutMs override", () => {
+  it("threads a custom HTTP timeout into the token endpoint request", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    const hanging = new Promise<Response>(() => {});
+    const fetchMock = (async () => hanging) as unknown as typeof fetch;
+    await expect(
+      getAppToken(
+        { credentialsPath: credsPath, tokenPath, httpTimeoutMs: 25 },
+        { fetchImpl: fetchMock }
+      )
+    ).rejects.toThrow(/ebay\.identity\.oauth2\.token timed out after 25ms/);
+  });
+});
+
+describe("AuthConfig tokenRefreshSafetyWindowMs override", () => {
+  it("reuses a cached token expiring inside the default 60s window when the override is lower", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    // Token expires in 30s — inside the default 60s refresh window, but
+    // outside a 5s override window, so a lower override should let us reuse it.
+    await writeFile(
+      tokenPath,
+      JSON.stringify({
+        access_token: "still-fresh",
+        token_type: "App",
+        expires_at: new Date(Date.now() + 30_000).toISOString(),
+        environment: "sandbox",
+        scopes: [DEFAULT_SCOPE],
+      })
+    );
+    let calls = 0;
+    const fetchMock = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const token = await getAppToken(
+      {
+        credentialsPath: credsPath,
+        tokenPath,
+        tokenRefreshSafetyWindowMs: 5_000,
+      },
+      { fetchImpl: fetchMock }
+    );
+    expect(calls).toBe(0);
+    expect(token.access_token).toBe("still-fresh");
+  });
+
+  it("refreshes a token expiring inside a tighter override window", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    // Token expires in 10s — outside default window logic but inside a 30s override.
+    await writeFile(
+      tokenPath,
+      JSON.stringify({
+        access_token: "stale",
+        token_type: "App",
+        expires_at: new Date(Date.now() + 10_000).toISOString(),
+        environment: "sandbox",
+        scopes: [DEFAULT_SCOPE],
+      })
+    );
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({ access_token: "refreshed", token_type: "App", expires_in: 7200 }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    const token = await getAppToken(
+      {
+        credentialsPath: credsPath,
+        tokenPath,
+        tokenRefreshSafetyWindowMs: 30_000,
+      },
+      { fetchImpl: fetchMock }
+    );
+    expect(token.access_token).toBe("refreshed");
   });
 });
 

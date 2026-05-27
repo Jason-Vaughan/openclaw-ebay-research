@@ -180,6 +180,21 @@ describe("getCategorySuggestions", () => {
     ).rejects.toThrow(/query is required/);
   });
 
+  it("surfaces a meaningful error when eBay returns non-JSON 500", async () => {
+    const fetchMock = (async (url: string) => {
+      if (url.includes("get_default_category_tree_id")) {
+        return jsonResponse({ categoryTreeId: "0" });
+      }
+      return new Response("Internal Server Error", {
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+    }) as unknown as typeof fetch;
+    await expect(
+      getCategorySuggestions(authConfig(), { query: "x" }, fetchMock)
+    ).rejects.toThrow(/Internal Server Error/);
+  });
+
   it("surfaces eBay errors with errorId", async () => {
     const fetchMock = (async (url: string) => {
       if (url.includes("get_default_category_tree_id")) {

@@ -45,7 +45,7 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 
 | Need | Tool | Notes |
 | --- | --- | --- |
-| What did this actually sell for? | `ebay_research_get_sold_history` | Returns aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in USD) PLUS the raw sold-item list. Window: 1-90 days (eBay cap). Filters: same `condition` / `priceMin` / `priceMax` as search. **Gated** — see "Insights gating" below. |
+| What did this actually sell for? | `ebay_research_get_sold_history` | Returns aggregate stats PLUS the raw sold-item list. Stats are bucketed per currency: `stats.primaryCurrency` names the marketplace's currency (USD for EBAY_US, GBP for EBAY_GB, etc.); `stats.primary` is the bucket of items priced in that currency (`sampleSize`, `min`/`max`/`mean`/`median`/`p25`/`p75`, all rounded to 2 decimals); `stats.byCurrency` is the per-currency breakdown for every currency observed. International searches that mix currencies will have multiple entries in `byCurrency` — surface the buckets separately rather than blending. Window: 1-90 days (eBay cap). Filters: same `condition` / `priceMin` / `priceMax` as search. **Gated** — see "Insights gating" below. |
 
 ### Diagnostics
 
@@ -63,6 +63,8 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 When `enableInsights = false` (default), the tool returns `{ status: "disabled", reason: "..." }` rather than failing. That is NOT a "no sales happened" answer — it means the surface is turned off. Tell the operator clearly: "Marketplace Insights isn't enabled — to get historical sold prices I'd need that flipped on AND eBay to have granted access. I can still tell you current asking prices via `search_active_listings`." Do not pretend the tool failed silently.
 
 When the tool DOES run and returns `stats.sampleSize: 0`, that IS a "no sales in the window" answer — different signal. Surface both cases honestly.
+
+When the tool returns results, the stats are **bucketed per currency**. Use `stats.primary` (the marketplace's primary-currency bucket) for the simple "what does X sell for" answer; mention `stats.byCurrency` only when it contains more than one entry (i.e. results genuinely mix currencies). Always surface the currency symbol/code alongside any price number you quote.
 
 ## Multi-step recipes
 
