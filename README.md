@@ -47,8 +47,11 @@ Every search result includes the canonical eBay `itemWebUrl`, so the agent can h
 3. **Install the plugin** into your OpenClaw gateway (typically inside the container):
 
    ```bash
-   openclaw plugins install @tangleclaw/openclaw-ebay-research
+   openclaw plugins install clawhub:@tangleclaw/openclaw-ebay-research
+   openclaw plugins enable tangleclaw-ebay-research
    ```
+
+   > **Why two commands?** Community-installed OpenClaw plugins currently don't auto-enable on install — only bundled plugins do, due to a gating quirk in the OpenClaw runtime (filed upstream as [openclaw/openclaw#87188](https://github.com/openclaw/openclaw/issues/87188), with empirical confirmation). The plugin's tools load fine after just `install`, but the `ebay-research` SKILL.md (the agent-bias layer that biases against narrating-without-calling, encodes recipes, surfaces `itemWebUrl` on every result, etc.) shows as **blocked** with `Missing requirements: config:plugins.entries.tangleclaw-ebay-research.enabled`. The `plugins enable` command flips that flag and activates the skill. This plugin already ships `enabledByDefault: true` in its manifest, so the second command will become unnecessary once #87188 ships.
 
 4. **Restart the gateway** so it picks up the new plugin.
 
