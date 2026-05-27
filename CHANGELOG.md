@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Per-currency bucketing in `ebay_research_get_sold_history` stats** (closes #1). `SoldHistoryStats` now exposes `primaryCurrency` (derived from `marketplaceId`), a `primary` bucket of stats for items priced in that currency, and a `byCurrency` map with stats for every currency observed in the result set. International searches (`EBAY_DE`, `EBAY_GB`, etc.) that return a few stragglers in other currencies are now bucketed cleanly instead of silently blending mismatched prices into one mis-labeled distribution.
+- **Configurable HTTP timeout + token-refresh safety window** (closes #2). Two new plugin config keys: `httpTimeoutMs` (default 30000) applies to every eBay REST call + the token endpoint; `tokenRefreshSafetyWindowMs` (default 60000) controls how early before expiry a cached token is proactively refreshed. Both thread through `AuthConfig` so operators on slow networks or with tight freshness needs can tune the plugin without forking.
+
+### Changed
+
+- **`SoldHistoryStats` output shape reshaped.** The pre-v0.2 flat shape (`{ sampleSize, total, currency, min, max, mean, median, p25, p75 }`) is replaced by `{ sampleSize, total, primaryCurrency, primary: { sampleSize, min, max, mean, median, p25, p75 }, byCurrency: Record<currency, bucket> }`. Pre-1.0 breaking change — operators reading from `stats.min` directly need to read from `stats.primary.min` instead. SKILL.md + the `get_sold_history` tool description updated to reflect the new shape.
+
+### Fixed
+
+- **Redact `Basic` / `Bearer` blobs from token-error messages** (closes #3). `requestAppToken` now passes the eBay token-endpoint error body through `redactAuthHeaders` before slicing it into the thrown error. Defends against the theoretical case where eBay's error body echoes a credential header back — credentials can no longer slip into logs / error-reporting pipelines via the thrown error.
+- **Round `min` / `max` / `mean` / `median` / `p25` / `p75` to 2 decimal places** in `get_sold_history` stats (closes #5). Eliminates floating-point artifacts like `224.0000000000001` from quantile math when surfacing currency values to the operator.
+
+### Internal
+
+- **Tests for the malformed-JSON 500 fallback branch** in all three REST call paths (`callBrowse`, `callEbayRest`, `callInsightsRest`) — closes #4. Confirms the `text.slice(0, 300)` fallback surfaces a meaningful error when eBay returns a bare-text 500.
+
 ## [0.1.0] - 2026-05-26
 
 ### Added

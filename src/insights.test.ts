@@ -68,28 +68,34 @@ describe("quantile", () => {
 });
 
 describe("computeStats", () => {
-  it("returns sampleSize=0 stats for empty items", () => {
-    const stats = _internal.computeStats([], 0);
+  it("returns sampleSize=0 stats with an empty primary bucket for empty items", () => {
+    const stats = _internal.computeStats([], 0, "EBAY_US");
     expect(stats.sampleSize).toBe(0);
-    expect(stats.min).toBeUndefined();
-    expect(stats.median).toBeUndefined();
+    expect(stats.total).toBe(0);
+    expect(stats.primaryCurrency).toBe("USD");
+    expect(stats.primary.sampleSize).toBe(0);
+    expect(stats.primary.min).toBeUndefined();
+    expect(stats.primary.median).toBeUndefined();
+    expect(stats.byCurrency).toEqual({});
   });
-  it("computes min/max/mean/median/p25/p75 from items", () => {
+  it("computes min/max/mean/median/p25/p75 in the primary bucket from items", () => {
     const items = [10, 20, 30, 40, 50].map((v) => ({
       itemId: `id-${v}`,
       title: `t-${v}`,
       soldPrice: { value: String(v), currency: "USD" },
     }));
-    const stats = _internal.computeStats(items, 5);
+    const stats = _internal.computeStats(items, 5, "EBAY_US");
     expect(stats.sampleSize).toBe(5);
-    expect(stats.min).toBe(10);
-    expect(stats.max).toBe(50);
-    expect(stats.mean).toBe(30);
-    expect(stats.median).toBe(30);
-    expect(stats.p25).toBe(20);
-    expect(stats.p75).toBe(40);
-    expect(stats.currency).toBe("USD");
     expect(stats.total).toBe(5);
+    expect(stats.primaryCurrency).toBe("USD");
+    expect(stats.primary.sampleSize).toBe(5);
+    expect(stats.primary.min).toBe(10);
+    expect(stats.primary.max).toBe(50);
+    expect(stats.primary.mean).toBe(30);
+    expect(stats.primary.median).toBe(30);
+    expect(stats.primary.p25).toBe(20);
+    expect(stats.primary.p75).toBe(40);
+    expect(stats.byCurrency.USD).toEqual(stats.primary);
   });
   it("ignores items with no soldPrice or non-numeric price", () => {
     const items = [
@@ -97,9 +103,73 @@ describe("computeStats", () => {
       { itemId: "2", title: "b" },
       { itemId: "3", title: "c", soldPrice: { value: "n/a", currency: "USD" } },
     ];
-    const stats = _internal.computeStats(items, 3);
+    const stats = _internal.computeStats(items, 3, "EBAY_US");
     expect(stats.sampleSize).toBe(1);
-    expect(stats.min).toBe(20);
+    expect(stats.primary.sampleSize).toBe(1);
+    expect(stats.primary.min).toBe(20);
+  });
+  it("buckets per currency and keeps primary stable even when mixed-currency items appear", () => {
+    const items = [
+      { itemId: "1", title: "us-a", soldPrice: { value: "100", currency: "USD" } },
+      { itemId: "2", title: "us-b", soldPrice: { value: "200", currency: "USD" } },
+      { itemId: "3", title: "eu-a", soldPrice: { value: "150", currency: "EUR" } },
+    ];
+    const stats = _internal.computeStats(items, 3, "EBAY_US");
+    expect(stats.sampleSize).toBe(3);
+    expect(stats.primaryCurrency).toBe("USD");
+    expect(stats.primary.sampleSize).toBe(2);
+    expect(stats.primary.min).toBe(100);
+    expect(stats.primary.max).toBe(200);
+    expect(stats.byCurrency.USD.sampleSize).toBe(2);
+    expect(stats.byCurrency.EUR.sampleSize).toBe(1);
+    expect(stats.byCurrency.EUR.min).toBe(150);
+    expect(stats.byCurrency.EUR.max).toBe(150);
+  });
+  it("returns an empty primary bucket but populated byCurrency when no items match the marketplace's currency", () => {
+    const items = [
+      { itemId: "1", title: "eu-a", soldPrice: { value: "100", currency: "EUR" } },
+      { itemId: "2", title: "eu-b", soldPrice: { value: "120", currency: "EUR" } },
+    ];
+    const stats = _internal.computeStats(items, 2, "EBAY_US");
+    expect(stats.primaryCurrency).toBe("USD");
+    expect(stats.primary.sampleSize).toBe(0);
+    expect(stats.primary.min).toBeUndefined();
+    expect(stats.byCurrency.EUR.sampleSize).toBe(2);
+  });
+  it("uses the marketplace's primary currency for items missing currency on soldPrice", () => {
+    const items = [
+      { itemId: "1", title: "a", soldPrice: { value: "10", currency: "" } },
+    ];
+    const stats = _internal.computeStats(items, 1, "EBAY_GB");
+    expect(stats.primaryCurrency).toBe("GBP");
+    expect(stats.primary.sampleSize).toBe(1);
+    expect(stats.byCurrency.GBP.sampleSize).toBe(1);
+  });
+  it("rounds min/max/mean/median/p25/p75 to 2 decimals", () => {
+    // Use values that would produce floating-point artifacts pre-rounding.
+    const items = [10.005, 20.005, 30.005].map((v) => ({
+      itemId: `id-${v}`,
+      title: `t-${v}`,
+      soldPrice: { value: String(v), currency: "USD" },
+    }));
+    const stats = _internal.computeStats(items, 3, "EBAY_US");
+    expect(stats.primary.min).toBe(10.01);
+    expect(stats.primary.max).toBe(30.01);
+    // mean = 20.005 → round2 → 20.01 (Math.round half-up at .5)
+    expect(stats.primary.mean).toBe(20.01);
+    // All returned values should round-trip through round2 (no float artifacts).
+    for (const v of [
+      stats.primary.min,
+      stats.primary.max,
+      stats.primary.mean,
+      stats.primary.median,
+      stats.primary.p25,
+      stats.primary.p75,
+    ]) {
+      if (v !== undefined) {
+        expect(Math.round(v * 100) / 100).toBe(v);
+      }
+    }
   });
 });
 
@@ -209,9 +279,11 @@ describe("getSoldHistory", () => {
     expect(captured.headers!["X-EBAY-C-MARKETPLACE-ID"]).toBe("EBAY_US");
     expect(result.items).toHaveLength(2);
     expect(result.stats.sampleSize).toBe(2);
-    expect(result.stats.min).toBe(199);
-    expect(result.stats.max).toBe(249);
-    expect(result.stats.median).toBeCloseTo(224);
+    expect(result.stats.primary.min).toBe(199);
+    expect(result.stats.primary.max).toBe(249);
+    expect(result.stats.primary.median).toBeCloseTo(224);
+    expect(result.stats.primaryCurrency).toBe("USD");
+    expect(result.stats.byCurrency.USD?.sampleSize).toBe(2);
     expect(result.windowDays).toBe(30);
     expect(result.truncated).toBe(false);
   });
@@ -336,6 +408,18 @@ describe("getSoldHistory", () => {
     await expect(
       getSoldHistory(authConfig(), { query: "x" }, fetchMock)
     ).rejects.toThrow(/environment changed mid-request/);
+  });
+
+  it("surfaces a meaningful error when eBay returns non-JSON 500", async () => {
+    await writeBroadToken();
+    const fetchMock = (async () =>
+      new Response("Internal Server Error", {
+        status: 500,
+        statusText: "Internal Server Error",
+      })) as unknown as typeof fetch;
+    await expect(
+      getSoldHistory(authConfig(), { query: "x" }, fetchMock)
+    ).rejects.toThrow(/Internal Server Error/);
   });
 
   it("falls back to price when lastSoldPrice missing", async () => {

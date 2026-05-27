@@ -35,6 +35,18 @@
         "type": "boolean",
         "default": false,
         "description": "Enable the ebay_research_get_sold_history tool. Requires eBay-granted Marketplace Insights API access (apply via the eBay Developer portal). When false, the tool returns a clear 'disabled' status without calling the API."
+      },
+      "httpTimeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "default": 30000,
+        "description": "HTTP request timeout in milliseconds (applies to every eBay REST call + the token endpoint). Default 30000 (30s). Raise on slow networks."
+      },
+      "tokenRefreshSafetyWindowMs": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 60000,
+        "description": "How many milliseconds before token expiry to proactively refresh. Default 60000 (60s). Lower for tighter freshness windows; raise if you observe race-window 401s."
       }
     }
   },

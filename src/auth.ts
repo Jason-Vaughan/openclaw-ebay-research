@@ -7,6 +7,8 @@ export type EbayEnvironment = "sandbox" | "production";
 export interface AuthConfig {
   credentialsPath: string;
   tokenPath: string;
+  httpTimeoutMs?: number;
+  tokenRefreshSafetyWindowMs?: number;
 }
 
 export interface Credentials {
@@ -30,7 +32,17 @@ export const INSIGHTS_SCOPE =
 const SANDBOX_BASE = "https://api.sandbox.ebay.com";
 const PRODUCTION_BASE = "https://api.ebay.com";
 
-const REFRESH_SAFETY_WINDOW_MS = 60_000;
+export const REFRESH_SAFETY_WINDOW_MS = 60_000;
+export const HTTP_TIMEOUT_MS = 30_000;
+
+// eBay token error bodies can in theory echo request headers back. Belt-and-
+// braces redact any Basic/Bearer values before interpolating into a thrown
+// error message so credentials can't slip into logs / error-reporting pipes.
+export function redactAuthHeaders(text: string): string {
+  return text
+    .replace(/Basic\s+[A-Za-z0-9+/=]+/gi, "Basic [REDACTED]")
+    .replace(/Bearer\s+[A-Za-z0-9._\-+/=]+/gi, "Bearer [REDACTED]");
+}
 
 export function apiBaseUrl(env: EbayEnvironment): string {
   return env === "sandbox" ? SANDBOX_BASE : PRODUCTION_BASE;
@@ -125,12 +137,13 @@ function isTokenFresh(
   token: CachedAppToken,
   env: EbayEnvironment,
   requiredScopes: string[],
+  safetyWindowMs: number = REFRESH_SAFETY_WINDOW_MS,
   now: number = Date.now()
 ): boolean {
   if (token.environment !== env) return false;
   const expiresAt = Date.parse(token.expires_at);
   if (Number.isNaN(expiresAt)) return false;
-  if (expiresAt - now <= REFRESH_SAFETY_WINDOW_MS) return false;
+  if (expiresAt - now <= safetyWindowMs) return false;
   const cached = new Set(token.scopes);
   for (const scope of requiredScopes) {
     if (!cached.has(scope)) return false;
@@ -153,7 +166,8 @@ interface TokenError {
 export async function requestAppToken(
   creds: Credentials,
   fetchImpl: typeof fetch = fetch,
-  scopes: string[] = [DEFAULT_SCOPE]
+  scopes: string[] = [DEFAULT_SCOPE],
+  timeoutMs: number = HTTP_TIMEOUT_MS
 ): Promise<CachedAppToken> {
   const tokenUrl = `${apiBaseUrl(creds.environment)}/identity/v1/oauth2/token`;
   const basic = Buffer.from(`${creds.client_id}:${creds.cert_id}`).toString(
@@ -172,7 +186,8 @@ export async function requestAppToken(
       },
       body,
     }),
-    "ebay.identity.oauth2.token"
+    "ebay.identity.oauth2.token",
+    timeoutMs
   );
   if (!res.ok) {
     const text = await res.text();
@@ -183,8 +198,10 @@ export async function requestAppToken(
       parsed = undefined;
     }
     const detail = parsed
-      ? `${parsed.error}${parsed.error_description ? `: ${parsed.error_description}` : ""}`
-      : text.slice(0, 200);
+      ? redactAuthHeaders(
+          `${parsed.error}${parsed.error_description ? `: ${parsed.error_description}` : ""}`
+        )
+      : redactAuthHeaders(text).slice(0, 200);
     throw new Error(
       `eBay token request failed (${res.status} ${res.statusText}): ${detail}`
     );
@@ -230,13 +247,21 @@ export async function getAppToken(
 ): Promise<CachedAppToken> {
   const creds = await readCredentials(config.credentialsPath);
   const scopes = options.scopes ?? [DEFAULT_SCOPE];
+  const safetyWindow =
+    config.tokenRefreshSafetyWindowMs ?? REFRESH_SAFETY_WINDOW_MS;
+  const timeoutMs = config.httpTimeoutMs ?? HTTP_TIMEOUT_MS;
   if (!options.force) {
     const cached = await readCachedToken(config.tokenPath);
-    if (cached && isTokenFresh(cached, creds.environment, scopes)) {
+    if (cached && isTokenFresh(cached, creds.environment, scopes, safetyWindow)) {
       return cached;
     }
   }
-  const fresh = await requestAppToken(creds, options.fetchImpl, scopes);
+  const fresh = await requestAppToken(
+    creds,
+    options.fetchImpl,
+    scopes,
+    timeoutMs
+  );
   await writeCachedToken(config.tokenPath, fresh);
   return fresh;
 }
@@ -274,8 +299,10 @@ export async function getAuthStatus(
       `Credentials file at ${config.credentialsPath} has permissions wider than 0600. Run: chmod 600 ${config.credentialsPath}`
     );
   }
+  const safetyWindow =
+    config.tokenRefreshSafetyWindowMs ?? REFRESH_SAFETY_WINDOW_MS;
   const cached = await readCachedToken(config.tokenPath);
-  if (cached && isTokenFresh(cached, creds.environment, [DEFAULT_SCOPE])) {
+  if (cached && isTokenFresh(cached, creds.environment, [DEFAULT_SCOPE], safetyWindow)) {
     return {
       connected: true,
       environment: cached.environment,
@@ -301,7 +328,7 @@ export async function getAuthStatus(
 export async function withTimeout<T>(
   promise: Promise<T>,
   label: string,
-  ms = 30_000
+  ms: number = HTTP_TIMEOUT_MS
 ): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {

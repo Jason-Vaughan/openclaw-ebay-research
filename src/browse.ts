@@ -122,7 +122,8 @@ async function callBrowse<T>(
           Accept: "application/json",
         },
       }),
-      `ebay.browse ${path}`
+      `ebay.browse ${path}`,
+      config.httpTimeoutMs
     );
 
   let res = await doRequest(token.access_token, apiBaseUrl(token.environment));

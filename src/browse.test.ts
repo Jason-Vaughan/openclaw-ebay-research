@@ -309,6 +309,17 @@ describe("searchActiveListings", () => {
     ).rejects.toThrow(/environment changed mid-request/);
   });
 
+  it("surfaces a meaningful error when eBay returns non-JSON 500", async () => {
+    const fetchMock = (async () =>
+      new Response("Internal Server Error", {
+        status: 500,
+        statusText: "Internal Server Error",
+      })) as unknown as typeof fetch;
+    await expect(
+      searchActiveListings(authConfig(), { query: "x" }, fetchMock)
+    ).rejects.toThrow(/Internal Server Error/);
+  });
+
   it("retries once on 401 with a fresh token", async () => {
     // Set a fresh cached token so the first call uses it.
     let calls = 0;

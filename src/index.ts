@@ -34,15 +34,35 @@ const configSchema = Type.Object({
     description:
       "Enable the ebay_research_get_sold_history tool. Requires eBay-granted Marketplace Insights API access (apply via the eBay Developer portal). When false, the tool returns a clear 'disabled' status without calling the API.",
   }),
+  httpTimeoutMs: Type.Optional(
+    Type.Integer({
+      minimum: 1000,
+      default: 30000,
+      description:
+        "HTTP request timeout in milliseconds (applies to every eBay REST call + the token endpoint). Default 30000 (30s). Raise on slow networks.",
+    })
+  ),
+  tokenRefreshSafetyWindowMs: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      default: 60000,
+      description:
+        "How many milliseconds before token expiry to proactively refresh. Default 60000 (60s). Lower for tighter freshness windows; raise if you observe race-window 401s.",
+    })
+  ),
 });
 
 function authConfig(config: {
   credentialsPath: string;
   tokenPath: string;
+  httpTimeoutMs?: number;
+  tokenRefreshSafetyWindowMs?: number;
 }): AuthConfig {
   return {
     credentialsPath: config.credentialsPath,
     tokenPath: config.tokenPath,
+    httpTimeoutMs: config.httpTimeoutMs,
+    tokenRefreshSafetyWindowMs: config.tokenRefreshSafetyWindowMs,
   };
 }
 
@@ -254,7 +274,7 @@ export default defineToolPlugin({
       name: "ebay_research_get_sold_history",
       label: "Get eBay Sold History",
       description:
-        "READ / FETCH historical SOLD listings on eBay for a query, over a date window (default 90 days, max 90 — Marketplace Insights API cap). ALWAYS call this tool — do not guess — whenever the operator asks: what did X actually sell for, what's the going rate for X, what have X been selling at, sold history for X, completed sales for X, how much did X sell for last month. Returns aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in USD) PLUS the raw sold-item list (with `itemWebUrl` for each). Distinct from `ebay_research_search_active_listings` (which shows current ASKING prices on live listings). REQUIRES `enableInsights: true` in plugin config AND an eBay-granted Marketplace Insights API access (apply at https://developer.ebay.com/). When disabled, returns a structured `{ status: 'disabled', reason }` rather than failing — that means access isn't configured, NOT that no sales happened.",
+        "READ / FETCH historical SOLD listings on eBay for a query, over a date window (default 90 days, max 90 — Marketplace Insights API cap). ALWAYS call this tool — do not guess — whenever the operator asks: what did X actually sell for, what's the going rate for X, what have X been selling at, sold history for X, completed sales for X, how much did X sell for last month. Returns aggregate stats PLUS the raw sold-item list (with `itemWebUrl` for each). Stats are bucketed per currency: `stats.primaryCurrency` is the marketplace's currency, `stats.primary` has the sampleSize / min / max / mean / median / p25 / p75 for items in that currency (rounded to 2 decimals), and `stats.byCurrency` gives the per-currency breakdown when results mix. Distinct from `ebay_research_search_active_listings` (which shows current ASKING prices on live listings). REQUIRES `enableInsights: true` in plugin config AND an eBay-granted Marketplace Insights API access (apply at https://developer.ebay.com/). When disabled, returns a structured `{ status: 'disabled', reason }` rather than failing — that means access isn't configured, NOT that no sales happened.",
       parameters: Type.Object({
         query: Type.String({
           description:
