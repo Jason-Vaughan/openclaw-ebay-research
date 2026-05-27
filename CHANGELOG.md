@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-27
+
 ### Added
 
 - **Per-currency bucketing in `ebay_research_get_sold_history` stats** (closes #1). `SoldHistoryStats` now exposes `primaryCurrency` (derived from `marketplaceId`), a `primary` bucket of stats for items priced in that currency, and a `byCurrency` map with stats for every currency observed in the result set. International searches (`EBAY_DE`, `EBAY_GB`, etc.) that return a few stragglers in other currencies are now bucketed cleanly instead of silently blending mismatched prices into one mis-labeled distribution.
