@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-27
+
+### Internal
+
+- **`enabledByDefault: true` in `openclaw.plugin.json`.** Sets the manifest hint so OpenClaw treats the plugin as enabled-on-install when its activation logic respects the field for community-origin plugins. The `SKILL.md` gates itself on `plugins.entries.tangleclaw-ebay-research.enabled` (canonical pattern shared with `tavily`, `open-prose`, etc.) — without this manifest hint, fresh installs come up with the skill in a "blocked / missing requirements" state and the operator must run `openclaw plugins enable tangleclaw-ebay-research` manually. With this hint, the install flow should flip the flag automatically. Many bundled OpenClaw plugins (`azure-speech`, `anthropic`, `browser`, etc.) use the same field. No behavior change for installs that already had the plugin explicitly enabled.
+
 ## [0.2.1] - 2026-05-27
 
 ### Internal
