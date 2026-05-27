@@ -8,30 +8,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Chunk R4 — SKILL.md + skills.test.ts (2026-05-26).** `skills/ebay-research/SKILL.md` lands per the openclaw-google-oauth precedent: frontmatter declares the plugin-id config requirement; Rule zero (never narrate, always re-call fresh — listings + prices + sold history change between turns), Rule one (on tool error, fix and re-call in the same turn — no narration), Rule two (always surface `itemWebUrl` when describing any listing). Per-tool decision tables grouped by API (Browse / Taxonomy / Insights / diagnostics). Multi-step recipes: four buyer-side (price check, best deal, condition+budget, URL parse), two seller-side (price-check candidate before listing, category lookup → create_offer handoff), one diagnostic. Explicit cross-plugin handoff to `tangleclaw-ebay-seller` including a NEVER-auto-confirm rule for hard-gated tools. Dedicated "Insights gating" section distinguishes the disabled-status response from a real zero-sample-size result. `src/skills.test.ts` (24 tests) asserts the SKILL.md mentions every tool, has each required rule, includes each mandatory recipe, and references the seller plugin. Skill content is the highest-leverage agent-bias artifact per the Google plugin precedent.
+- **Six read-only eBay research tools** wired via `defineToolPlugin`:
+  - `ebay_research_auth_status` — connection diagnostics, never echoes the access token, surfaces credential-file-permissions warnings.
+  - `ebay_research_search_active_listings` — Browse API search with filters: `sort` (price_asc/price_desc/best_match/newly_listed), `condition` (NEW/USED/...), `priceMin/priceMax` (auto-currency per marketplace), `marketplaceId`, `limit` (1-200), `offset` (offset+limit capped at eBay's 10000 hard limit). Returns `itemWebUrl` on every result so the agent can hand operators clickable links.
+  - `ebay_research_get_item` — Browse API single-item detail by item_id (URL-encoded for eBay's pipe-delimited id format).
+  - `ebay_research_get_category_suggestions` — Taxonomy API ranked suggestions with `categoryId` + `categoryName` + ancestor chain. The categoryId is exactly what the sister `tangleclaw-ebay-seller` plugin's `create_offer` needs.
+  - `ebay_research_get_category_subtree` — Taxonomy API drill-down with per-child `categoryId` + `isLeaf` flag (leaves are what `create_offer` requires).
+  - `ebay_research_get_sold_history` — Marketplace Insights API sold listings + aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in marketplace currency) over a 1-90 day window. **Feature-flagged** via `plugins.entries.tangleclaw-ebay-research.config.enableInsights = false`; returns `{ status: "disabled", reason }` when off rather than failing. Requires eBay-granted Marketplace Insights API access.
+- **`client_credentials` OAuth flow** (`src/auth.ts`): POSTs `client_id` + `cert_id` (HTTP Basic) to eBay's token endpoint, caches the access token at `~/.openclaw/secrets/ebay-research-app-token.json` with enforced 0600 perms (chmod-on-every-write so existing-file mode regressions can't slip in), auto-refreshes 60s before expiry, environment-aware (`sandbox` / `production` base URLs). Detects mid-request environment switches on 401-retry path and throws a clear error rather than silently calling the wrong host with the wrong token. Parses eBay's granted-scope response and verifies all requested scopes were actually granted — guards against silent scope downgrades (e.g. `buy.marketplace.insights` requested but eBay didn't grant it) that would otherwise loop forever.
+- **`skills/ebay-research/SKILL.md`** — the agent-bias artifact loaded into the system prompt. Frontmatter declares the plugin-id config requirement. Rule zero (never narrate, always re-call fresh), Rule one (on tool error, fix and re-call in the same turn — no narration), Rule two (always surface `itemWebUrl` when describing a listing). Per-tool decision tables grouped by API. Recipes for buyer-side ("what does X sell for", "best deal", condition+budget, URL parse with variation-listing caveat), seller-side (price-check candidate before listing, category lookup → create_offer handoff), non-US marketplaces, and diagnostics. Explicit cross-plugin handoff to `tangleclaw-ebay-seller` with a sharp NEVER-call-`ebay_seller_confirm_pending`-yourself rule. Dedicated "Insights gating" section distinguishes the `enableInsights=false` disabled response from a real `stats.sampleSize=0` (no sales in window) result.
+- **Auto-derived per-marketplace currency** for price filters: EBAY_US→USD, EBAY_GB→GBP, EBAY_DE→EUR, EBAY_CA→CAD, EBAY_AU→AUD, etc. (see `currencyForMarketplace`). Prevents the `priceCurrency:USD` hardcode that would break multi-marketplace searches.
+- **Test suite** (108 unit tests, 6 live tests gated on `RUN_LIVE_TESTS=1` + optional `RUN_INSIGHTS_TESTS=1`):
+  - `src/auth.test.ts` — env handling, credentials parsing, HTTP Basic encoding, token cache, expiry/scope-mismatch/env-mismatch refresh, getAuthStatus paths (including credential-perm warning), never-leak-token assertion.
+  - `src/browse.test.ts` — sort/filter builders, search headers + URL params, getItem encoding, eBay error surfacing with errorId, 401→refresh→retry, env-switch protection on retry.
+  - `src/taxonomy.test.ts` — tree-id cache per (env, marketplace), suggestions/subtree call shapes, error surface.
+  - `src/insights.test.ts` — quantile + computeStats (median, p25/p75, currency-mix handling), scope request body, header shape, truncated flag, validation, scope-hint surfacing on 403.
+  - `src/index.test.ts` — plugin metadata, tool count, names.
+  - `src/descriptions.test.ts` — per-tool description quality (read-verb count, key feature mentions).
+  - `src/skills.test.ts` — SKILL.md mentions every tool, has each rule, includes each mandatory recipe, has cross-plugin handoff + NEVER-auto-confirm wording.
+  - `src/live.test.ts` — real-API round trips against Sandbox / Production, gated by env flags.
+- **`openclaw.plugin.json` manifest** + plugin-loadable bundle. `defineToolPlugin` exposes the 6 tools with typebox parameter schemas + plain-text descriptions tuned for small-model routing.
+- **README** with install, eBay-app setup walkthrough, tool reference, config schema, "Enabling Marketplace Insights" gated-approval walkthrough, sister-plugin pointer.
+- **MIT LICENSE.**
+- **Operator-facing prompt docs** (`docs/smoke-test-prompt.md`, `docs/skill-verification-prompt.md`) for validating the plugin behaves correctly post-deployment.
+- **CHANGELOG** in Keep a Changelog format.
 
-- **Chunk R3 — Marketplace Insights tool (2026-05-26).** New read tool `ebay_research_get_sold_history(query, days?, condition?, priceMin?, priceMax?, marketplaceId?, limit?, offset?)`. Returns aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in USD) plus the raw sold-item list (each with `itemWebUrl`). Distinct from `search_active_listings` — that's current ASKING prices; this is historical SOLD prices over a 1-90 day window. **Feature-flagged:** disabled by default via `plugins.entries.tangleclaw-ebay-research.config.enableInsights = false`. When disabled, returns `{ status: 'disabled', reason: '...' }` rather than failing — the agent can explain rather than throwing. When enabled, requests the `buy.marketplace.insights` OAuth scope alongside the default scope; auth.ts grew an optional `scopes: string[]` parameter and a scope-superset cache check (cached token is reused only if it contains all requested scopes, otherwise refreshed). README has a new "Enabling Marketplace Insights" walkthrough covering eBay's gated approval process.
+### Plan deviations
 
-### Changed
+Two intentional plan deviations during v0.1 development, both logged here for traceability:
 
-- `requestAppToken` + `getAppToken` accept an optional `scopes: string[]` (defaults to `[DEFAULT_SCOPE]` — backward compatible). `isTokenFresh` now also checks `cached.scopes ⊇ requested.scopes`.
-- Exported `DEFAULT_SCOPE` and added `INSIGHTS_SCOPE` constants.
-
-- **Chunk R2 — Taxonomy API tools (2026-05-26).** Two new read tools land:
-  - `ebay_research_get_category_suggestions` — free-text query → ranked category suggestions with `categoryId` + `categoryName` + full ancestor chain. The categoryId is exactly what the sister seller plugin's `create_offer` needs.
-  - `ebay_research_get_category_subtree` — drill down one level into a category by category_id. Each child node carries an `isLeaf` flag (sellable leaves are what `create_offer` requires).
-  - `src/taxonomy.ts` adds an internal `getDefaultCategoryTreeId` that caches the per-marketplace tree id for the process lifetime (the tree id is stable; restart the gateway if eBay ever bumps it).
-  - **Plan deviation noted:** the build plan called for `ebay_research_get_categories` (top-level tree fetch) but the full eBay category tree is several MB; ranked suggestions via the Taxonomy API's `get_category_suggestions` endpoint is materially more useful for both buyer-side ("what category does X belong in?") and seller-side ("what categoryId should create_offer use?") flows. Documented here for traceability.
-- Initial scaffold (TypeScript, vitest, openclaw plugin SDK).
-- `src/auth.ts`: eBay `client_credentials` OAuth flow with app-token cache + auto-refresh + Sandbox/Production URL switching.
-- `src/browse.ts`: eBay Browse API HTTP client (typed responses + error normalization).
-- Three tools wired via `defineToolPlugin`:
-  - `ebay_research_auth_status` — never echoes the token itself.
-  - `ebay_research_search_active_listings` — filters sort/condition/price_min/price_max/marketplace, returns `itemWebUrl` on every result.
-  - `ebay_research_get_item` — full item detail by item_id.
-- Unit tests with mocked HTTP for auth + browse + tool surface.
-- Description-quality tests (read tools must explicitly declare read verbs).
-- Live tests gated by `RUN_LIVE_TESTS=1` (skipped without keys).
-- `openclaw.plugin.json` manifest.
-- README with install + tool reference + configuration.
-- MIT LICENSE.
+- **Chunks R0 + R1 merged into one session.** Plan called for separate "scaffold + auth_status" and "Browse tools" sessions; we merged them for greenfield velocity. Three tools landed in the first commit instead of one. Discussed + approved before execution.
+- **`ebay_research_get_categories` replaced with `ebay_research_get_category_suggestions`.** Plan called for top-level tree fetch; eBay's full category tree is several MB and rarely what an agent actually needs. Ranked suggestions are materially more useful for both buyer-side ("what category is X?") and seller-side ("what categoryId for create_offer?") flows.

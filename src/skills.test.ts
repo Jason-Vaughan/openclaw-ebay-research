@@ -87,9 +87,12 @@ describe("SKILL.md cross-plugin hook", () => {
   it("references the sister seller plugin by id", () => {
     expect(skill).toContain("tangleclaw-ebay-seller");
   });
-  it("explicitly tells the agent NOT to auto-confirm seller hard-gated tools", () => {
-    expect(skill.toLowerCase()).toContain("auto-confirm");
-    expect(skill).toContain("confirm_pending");
+  it("explicitly forbids the agent from calling ebay_seller_confirm_pending itself", () => {
+    expect(skill).toContain("ebay_seller_confirm_pending");
+    expect(skill.toLowerCase()).toContain("never call");
+    // The strongest guard: even when the operator says affirmative things,
+    // the agent must NOT redeem the token autonomously.
+    expect(skill.toLowerCase()).toContain("even if the operator");
   });
 });
 

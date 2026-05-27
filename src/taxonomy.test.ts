@@ -267,4 +267,81 @@ describe("getCategorySubtree", () => {
     expect(result.root.categoryId).toBe("");
     expect(result.root.children).toEqual([]);
   });
+
+  it("retries once on 401 with a fresh token", async () => {
+    let calls = 0;
+    const fetchMock = (async (url: string) => {
+      calls += 1;
+      if (url.includes("get_default_category_tree_id")) {
+        return jsonResponse({ categoryTreeId: "0" });
+      }
+      if (calls === 2) {
+        return new Response(
+          JSON.stringify({ errors: [{ errorId: 1001, message: "expired" }] }),
+          { status: 401, statusText: "Unauthorized" }
+        );
+      }
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return jsonResponse({
+          access_token: "fresh",
+          token_type: "App",
+          expires_in: 7200,
+          scope: "https://api.ebay.com/oauth/api_scope",
+        });
+      }
+      return jsonResponse({
+        categorySubtreeNode: {
+          category: { categoryId: "1", categoryName: "Retried" },
+          leafCategoryTreeNode: false,
+        },
+      });
+    }) as unknown as typeof fetch;
+    const result = await getCategorySubtree(
+      authConfig(),
+      { categoryId: "1" },
+      fetchMock
+    );
+    expect(result.root.categoryName).toBe("Retried");
+  });
+
+  it("throws on 401-retry when environment changes mid-request", async () => {
+    // Cached token is sandbox. The fetch mock will swap creds to production
+    // when the subtree endpoint 401s, so the force-refresh produces a
+    // production token — exposing the env-mismatch guard.
+    let calls = 0;
+    const fetchMock = (async (url: string) => {
+      calls += 1;
+      if (url.includes("get_default_category_tree_id")) {
+        return jsonResponse({ categoryTreeId: "0" });
+      }
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return jsonResponse({
+          access_token: "prod-token",
+          token_type: "App",
+          expires_in: 7200,
+          scope: "https://api.ebay.com/oauth/api_scope",
+        });
+      }
+      if (url.includes("get_category_subtree") && calls === 2) {
+        // Swap creds to production HERE so the force-refresh that follows
+        // produces a different environment than the cached token's.
+        await writeFile(
+          credsPath,
+          JSON.stringify({
+            client_id: "cid",
+            cert_id: "secret",
+            environment: "production",
+          })
+        );
+        return new Response(
+          JSON.stringify({ errors: [{ errorId: 1001, message: "expired" }] }),
+          { status: 401, statusText: "Unauthorized" }
+        );
+      }
+      return jsonResponse({ categorySubtreeNode: {} });
+    }) as unknown as typeof fetch;
+    await expect(
+      getCategorySubtree(authConfig(), { categoryId: "1" }, fetchMock)
+    ).rejects.toThrow(/environment changed mid-request/);
+  });
 });

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, chmod, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
@@ -34,6 +34,31 @@ const REFRESH_SAFETY_WINDOW_MS = 60_000;
 
 export function apiBaseUrl(env: EbayEnvironment): string {
   return env === "sandbox" ? SANDBOX_BASE : PRODUCTION_BASE;
+}
+
+const MARKETPLACE_CURRENCY: Record<string, string> = {
+  EBAY_US: "USD",
+  EBAY_CA: "CAD",
+  EBAY_GB: "GBP",
+  EBAY_IE: "EUR",
+  EBAY_DE: "EUR",
+  EBAY_AT: "EUR",
+  EBAY_BE: "EUR",
+  EBAY_CH: "CHF",
+  EBAY_ES: "EUR",
+  EBAY_FR: "EUR",
+  EBAY_IT: "EUR",
+  EBAY_NL: "EUR",
+  EBAY_PL: "PLN",
+  EBAY_AU: "AUD",
+  EBAY_HK: "HKD",
+  EBAY_MY: "MYR",
+  EBAY_PH: "PHP",
+  EBAY_SG: "SGD",
+};
+
+export function currencyForMarketplace(marketplaceId: string): string {
+  return MARKETPLACE_CURRENCY[marketplaceId] ?? "USD";
 }
 
 export function expandHome(p: string): string {
@@ -77,9 +102,23 @@ async function writeCachedToken(
   tokenPath: string,
   token: CachedAppToken
 ): Promise<void> {
-  await writeFile(expandHome(tokenPath), JSON.stringify(token, null, 2), {
-    mode: 0o600,
-  });
+  const path = expandHome(tokenPath);
+  await writeFile(path, JSON.stringify(token, null, 2), { mode: 0o600 });
+  // writeFile only applies `mode` when creating the file; if an existing
+  // file had looser perms (e.g. 0644 from a prior version), they'd be
+  // preserved silently. Always chmod after write to enforce 0600.
+  await chmod(path, 0o600);
+}
+
+export async function fileModeIsRestrictive(
+  filePath: string
+): Promise<boolean | null> {
+  try {
+    const s = await stat(expandHome(filePath));
+    return (s.mode & 0o077) === 0;
+  } catch {
+    return null;
+  }
 }
 
 function isTokenFresh(
@@ -103,6 +142,7 @@ interface TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  scope?: string;
 }
 
 interface TokenError {
@@ -151,12 +191,32 @@ export async function requestAppToken(
   }
   const data = (await res.json()) as TokenResponse;
   const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+  // eBay returns the actually-granted scopes in the `scope` field. If a
+  // requested scope wasn't granted (e.g. buy.marketplace.insights without
+  // approved access), eBay silently downgrades — we'd otherwise cache a
+  // token tagged with INSIGHTS_SCOPE that has no Insights access, and
+  // every subsequent call would 401-then-refresh-then-401 forever.
+  // Trust what eBay says was granted, not what we asked for.
+  const grantedScopes = data.scope
+    ? data.scope.split(/\s+/).filter(Boolean)
+    : scopes;
+  for (const requested of scopes) {
+    if (!grantedScopes.includes(requested)) {
+      const hint =
+        requested === INSIGHTS_SCOPE
+          ? " (hint: your eBay app may not yet have Marketplace Insights access; apply via the eBay Developer portal at https://developer.ebay.com/)"
+          : "";
+      throw new Error(
+        `eBay token response did not include the requested scope ${requested}. Granted: [${grantedScopes.join(", ")}].${hint}`
+      );
+    }
+  }
   return {
     access_token: data.access_token,
     token_type: data.token_type,
     expires_at: expiresAt,
     environment: creds.environment,
-    scopes,
+    scopes: grantedScopes,
   };
 }
 
@@ -189,6 +249,7 @@ export async function getAuthStatus(
   scopes: string[];
   expires_at: string | null;
   credentials_present: boolean;
+  warnings: string[];
   reason?: string;
 }> {
   let creds: Credentials;
@@ -202,8 +263,16 @@ export async function getAuthStatus(
       scopes: [],
       expires_at: null,
       credentials_present: false,
+      warnings: [],
       reason: `Credentials not configured: ${message}`,
     };
+  }
+  const warnings: string[] = [];
+  const credsRestrictive = await fileModeIsRestrictive(config.credentialsPath);
+  if (credsRestrictive === false) {
+    warnings.push(
+      `Credentials file at ${config.credentialsPath} has permissions wider than 0600. Run: chmod 600 ${config.credentialsPath}`
+    );
   }
   const cached = await readCachedToken(config.tokenPath);
   if (cached && isTokenFresh(cached, creds.environment, [DEFAULT_SCOPE])) {
@@ -213,6 +282,7 @@ export async function getAuthStatus(
       scopes: cached.scopes,
       expires_at: cached.expires_at,
       credentials_present: true,
+      warnings,
     };
   }
   return {
@@ -221,6 +291,7 @@ export async function getAuthStatus(
     scopes: [],
     expires_at: cached?.expires_at ?? null,
     credentials_present: true,
+    warnings,
     reason: cached
       ? "Cached app token is missing or expired. Next tool call will refresh."
       : "No cached app token yet. Next tool call will fetch one.",

@@ -86,7 +86,7 @@ Until access is granted, leave `enableInsights = false`. The tool will still be 
 
 ## Pairs well with
 
-- [`@tangleclaw/openclaw-ebay-seller`](https://github.com/Jason-Vaughan/openclaw-ebay-seller) (sister plugin — read+write seller-side tools with OAuth + approval gating). The seller plugin's `create_offer` needs a category_id, which is exactly what this plugin's `ebay_research_get_categories` returns. Install both side-by-side.
+- [`@tangleclaw/openclaw-ebay-seller`](https://github.com/Jason-Vaughan/openclaw-ebay-seller) (sister plugin — read+write seller-side tools with OAuth + approval gating). The seller plugin's `create_offer` needs a category_id, which is exactly what this plugin's `ebay_research_get_category_suggestions` returns. Install both side-by-side.
 
 ## Out of scope (deferred to later versions)
 

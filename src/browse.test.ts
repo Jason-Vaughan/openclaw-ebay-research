@@ -66,41 +66,57 @@ describe("buildSortParam", () => {
 describe("buildFilterParam", () => {
   it("returns undefined when no filters are set", () => {
     expect(
-      _internal.buildFilterParam({ query: "x" })
+      _internal.buildFilterParam({ query: "x" }, "EBAY_US")
     ).toBeUndefined();
   });
   it("builds a single-condition filter", () => {
     expect(
-      _internal.buildFilterParam({ query: "x", condition: "USED" })
+      _internal.buildFilterParam({ query: "x", condition: "USED" }, "EBAY_US")
     ).toBe("conditions:{USED}");
   });
   it("builds a multi-condition filter joined by pipe", () => {
     expect(
-      _internal.buildFilterParam({
-        query: "x",
-        condition: ["NEW", "USED"],
-      })
+      _internal.buildFilterParam(
+        { query: "x", condition: ["NEW", "USED"] },
+        "EBAY_US"
+      )
     ).toBe("conditions:{NEW|USED}");
   });
-  it("builds a price range filter with both bounds", () => {
-    const f = _internal.buildFilterParam({
-      query: "x",
-      priceMin: 10,
-      priceMax: 500,
-    });
+  it("builds a price range filter in USD for EBAY_US", () => {
+    const f = _internal.buildFilterParam(
+      { query: "x", priceMin: 10, priceMax: 500 },
+      "EBAY_US"
+    );
     expect(f).toContain("price:[10..500]");
     expect(f).toContain("priceCurrency:USD");
   });
+  it("builds a price range filter in GBP for EBAY_GB", () => {
+    const f = _internal.buildFilterParam(
+      { query: "x", priceMin: 10, priceMax: 500 },
+      "EBAY_GB"
+    );
+    expect(f).toContain("priceCurrency:GBP");
+    expect(f).not.toContain("priceCurrency:USD");
+  });
+  it("builds a price range filter in EUR for EBAY_DE", () => {
+    const f = _internal.buildFilterParam(
+      { query: "x", priceMin: 10, priceMax: 500 },
+      "EBAY_DE"
+    );
+    expect(f).toContain("priceCurrency:EUR");
+  });
   it("builds an open-ended price filter when only priceMin is set", () => {
-    const f = _internal.buildFilterParam({ query: "x", priceMin: 100 });
+    const f = _internal.buildFilterParam(
+      { query: "x", priceMin: 100 },
+      "EBAY_US"
+    );
     expect(f).toContain("price:[100..]");
   });
   it("combines condition + price filters with commas", () => {
-    const f = _internal.buildFilterParam({
-      query: "x",
-      condition: "USED",
-      priceMax: 200,
-    });
+    const f = _internal.buildFilterParam(
+      { query: "x", condition: "USED", priceMax: 200 },
+      "EBAY_US"
+    );
     expect(f).toBe("conditions:{USED},price:[0..200],priceCurrency:USD");
   });
 });
@@ -207,6 +223,33 @@ describe("searchActiveListings", () => {
     ).rejects.toThrow(/limit must be/);
   });
 
+  it("rejects offset+limit exceeding eBay's 10000 hard cap", async () => {
+    await expect(
+      searchActiveListings(
+        authConfig(),
+        { query: "x", offset: 9999, limit: 10 },
+        fetch
+      )
+    ).rejects.toThrow(/10000/);
+  });
+
+  it("passes priceCurrency:GBP when searching EBAY_GB with a price range", async () => {
+    let capturedUrl = "";
+    const fetchMock = (async (url: string) => {
+      capturedUrl = url;
+      return new Response(
+        JSON.stringify({ total: 0, limit: 10, offset: 0, itemSummaries: [] }),
+        { status: 200 }
+      );
+    }) as unknown as typeof fetch;
+    await searchActiveListings(
+      authConfig(),
+      { query: "bmx", marketplaceId: "EBAY_GB", priceMax: 200 },
+      fetchMock
+    );
+    expect(decodeURIComponent(capturedUrl)).toContain("priceCurrency:GBP");
+  });
+
   it("surfaces eBay API error responses with errorId + message", async () => {
     const fetchMock = (async () =>
       new Response(
@@ -228,6 +271,42 @@ describe("searchActiveListings", () => {
         fetchMock
       )
     ).rejects.toThrow(/errorId=12001.*not supported/);
+  });
+
+  it("throws clearly when 401-retry detects an environment switch", async () => {
+    let calls = 0;
+    const fetchMock = (async () => {
+      calls += 1;
+      if (calls === 1) {
+        // First (browse) request → 401. Swap creds to production HERE so
+        // the next force-refresh getAppToken reads the new env.
+        await writeFile(
+          credsPath,
+          JSON.stringify({
+            client_id: "cid",
+            cert_id: "secret",
+            environment: "production",
+          })
+        );
+        return new Response(
+          JSON.stringify({ errors: [{ errorId: 1001, message: "expired" }] }),
+          { status: 401, statusText: "Unauthorized" }
+        );
+      }
+      // Second call: oauth token refresh (now against production creds).
+      return new Response(
+        JSON.stringify({
+          access_token: "prod",
+          token_type: "App",
+          expires_in: 7200,
+          scope: "https://api.ebay.com/oauth/api_scope",
+        }),
+        { status: 200 }
+      );
+    }) as unknown as typeof fetch;
+    await expect(
+      searchActiveListings(authConfig(), { query: "x" }, fetchMock)
+    ).rejects.toThrow(/environment changed mid-request/);
   });
 
   it("retries once on 401 with a fresh token", async () => {

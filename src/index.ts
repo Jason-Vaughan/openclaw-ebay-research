@@ -140,7 +140,7 @@ export default defineToolPlugin({
         categoryIds: Type.Optional(
           Type.Array(Type.String(), {
             description:
-              "Optional eBay category id filter. Get category ids from a Taxonomy API tool (future ebay_research_get_categories).",
+              "Optional eBay category id filter. Get category ids from `ebay_research_get_category_suggestions` or `ebay_research_get_category_subtree`.",
           })
         ),
       }),

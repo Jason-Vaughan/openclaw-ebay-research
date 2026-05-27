@@ -9,10 +9,13 @@ import {
   getAppToken,
   getAuthStatus,
   apiBaseUrl,
+  currencyForMarketplace,
+  fileModeIsRestrictive,
   withTimeout,
   DEFAULT_SCOPE,
   INSIGHTS_SCOPE,
 } from "./auth.js";
+import { stat, chmod } from "node:fs/promises";
 
 let workDir: string;
 
@@ -327,6 +330,154 @@ describe("getAuthStatus", () => {
     });
     expect(status.connected).toBe(false);
     expect(status.credentials_present).toBe(true);
+  });
+});
+
+describe("currencyForMarketplace", () => {
+  it("returns USD for EBAY_US", () => {
+    expect(currencyForMarketplace("EBAY_US")).toBe("USD");
+  });
+  it("returns GBP for EBAY_GB", () => {
+    expect(currencyForMarketplace("EBAY_GB")).toBe("GBP");
+  });
+  it("returns EUR for EBAY_DE / EBAY_FR / EBAY_IT", () => {
+    expect(currencyForMarketplace("EBAY_DE")).toBe("EUR");
+    expect(currencyForMarketplace("EBAY_FR")).toBe("EUR");
+    expect(currencyForMarketplace("EBAY_IT")).toBe("EUR");
+  });
+  it("returns CAD for EBAY_CA, AUD for EBAY_AU", () => {
+    expect(currencyForMarketplace("EBAY_CA")).toBe("CAD");
+    expect(currencyForMarketplace("EBAY_AU")).toBe("AUD");
+  });
+  it("falls back to USD for unknown marketplaces", () => {
+    expect(currencyForMarketplace("EBAY_XX")).toBe("USD");
+  });
+});
+
+describe("requestAppToken scope enforcement", () => {
+  it("throws when eBay's response omits a requested scope (silent downgrade detection)", async () => {
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({
+          access_token: "narrow-token",
+          token_type: "App",
+          expires_in: 7200,
+          // requested INSIGHTS_SCOPE but eBay only granted DEFAULT_SCOPE
+          scope: DEFAULT_SCOPE,
+        }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    await expect(
+      requestAppToken(
+        { client_id: "cid", cert_id: "secret", environment: "sandbox" },
+        fetchMock,
+        [DEFAULT_SCOPE, INSIGHTS_SCOPE]
+      )
+    ).rejects.toThrow(/buy.marketplace.insights.*Marketplace Insights access/);
+  });
+
+  it("stores the actually-granted scopes, not the requested ones", async () => {
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({
+          access_token: "t",
+          token_type: "App",
+          expires_in: 7200,
+          // eBay grants a scope we didn't request (rare but possible)
+          scope: `${DEFAULT_SCOPE} https://api.ebay.com/oauth/api_scope/sell.inventory`,
+        }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    const token = await requestAppToken(
+      { client_id: "cid", cert_id: "secret", environment: "sandbox" },
+      fetchMock,
+      [DEFAULT_SCOPE]
+    );
+    expect(token.scopes).toContain("https://api.ebay.com/oauth/api_scope/sell.inventory");
+  });
+
+  it("falls back to requested scopes when eBay omits the scope field entirely", async () => {
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({
+          access_token: "t",
+          token_type: "App",
+          expires_in: 7200,
+        }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    const token = await requestAppToken(
+      { client_id: "cid", cert_id: "secret", environment: "sandbox" },
+      fetchMock,
+      [DEFAULT_SCOPE]
+    );
+    expect(token.scopes).toEqual([DEFAULT_SCOPE]);
+  });
+});
+
+describe("writeCachedToken file mode enforcement", () => {
+  it("forces 0600 even when the file pre-exists with looser perms", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    // Pre-create token file with loose perms.
+    await writeFile(tokenPath, "{}");
+    await chmod(tokenPath, 0o644);
+    const before = await stat(tokenPath);
+    expect(before.mode & 0o777).toBe(0o644);
+
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({ access_token: "t", token_type: "App", expires_in: 7200 }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    await getAppToken(
+      { credentialsPath: credsPath, tokenPath },
+      { fetchImpl: fetchMock }
+    );
+
+    const after = await stat(tokenPath);
+    expect(after.mode & 0o777).toBe(0o600);
+  });
+});
+
+describe("fileModeIsRestrictive", () => {
+  it("returns true for a 0600 file", async () => {
+    const path = join(workDir, "tight.json");
+    await writeFile(path, "{}");
+    await chmod(path, 0o600);
+    expect(await fileModeIsRestrictive(path)).toBe(true);
+  });
+  it("returns false for a 0644 file", async () => {
+    const path = join(workDir, "loose.json");
+    await writeFile(path, "{}");
+    await chmod(path, 0o644);
+    expect(await fileModeIsRestrictive(path)).toBe(false);
+  });
+  it("returns null for a missing file", async () => {
+    expect(await fileModeIsRestrictive(join(workDir, "missing.json"))).toBeNull();
+  });
+});
+
+describe("getAuthStatus surfaces credential-permission warnings", () => {
+  it("includes a warning when credentials file has wider-than-0600 perms", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    await chmod(credsPath, 0o644);
+    const status = await getAuthStatus({
+      credentialsPath: credsPath,
+      tokenPath: join(workDir, "token.json"),
+    });
+    expect(status.warnings.length).toBeGreaterThan(0);
+    expect(status.warnings[0]).toMatch(/0600/);
+  });
+
+  it("warnings array is empty when credentials file has 0600 perms", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    await chmod(credsPath, 0o600);
+    const status = await getAuthStatus({
+      credentialsPath: credsPath,
+      tokenPath: join(workDir, "token.json"),
+    });
+    expect(status.warnings).toEqual([]);
   });
 });
 

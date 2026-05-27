@@ -89,6 +89,8 @@ When the tool DOES run and returns `stats.sampleSize: 0`, that IS a "no sales in
 2. `ebay_research_get_item(itemId='v1|<numeric>|0')`.
 3. Return the structured detail.
 
+> **Variation-listing caveat.** Listings with multiple variations (size / color / etc.) use a non-zero suffix in the real eBay itemId — `v1|<numeric>|<variation-id>`. Constructing `v1|<numeric>|0` from a URL works for most listings but returns the parent listing (not the specific variation) for multi-variation listings. If the operator says "this specific size/color isn't right" after you fetch with `|0`, tell them you fetched the parent listing and that variation-specific detail needs the full v1 id from the eBay app's API surface (out of scope for this URL-construction shortcut).
+
 ### Seller-side: "price-check this candidate listing before I post it"
 
 1. `ebay_research_search_active_listings(query=item)` — current asking-price competition.
@@ -102,6 +104,10 @@ When the tool DOES run and returns `stats.sampleSize: 0`, that IS a "no sales in
 2. If the top suggestion's `isLeaf` is false (or you want to confirm a sellable leaf), call `ebay_research_get_category_subtree(categoryId=<top suggestion id>)` and pick a leaf child.
 3. Return the chosen `categoryId` and the human-readable ancestor path. Hand off to the `tangleclaw-ebay-seller` plugin's `create_offer` if installed.
 
+### Non-US marketplaces
+
+If the operator asks "what does X sell for on **eBay UK**" / "on eBay Germany", pass the appropriate `marketplaceId` to whatever tool you call: `EBAY_GB` (UK), `EBAY_DE` (Germany), `EBAY_CA` (Canada), `EBAY_AU` (Australia), etc. The plugin auto-derives the right `priceCurrency` from the marketplace (GBP / EUR / CAD / AUD / etc.), so price filters work correctly without you needing to think about currency. Surface the currency in your response so the operator isn't confused by raw numbers.
+
 ### Diagnostic: "ebay isn't working" / "no results"
 
 1. `ebay_research_auth_status` — confirms credentials are in place and which environment is active.
@@ -112,8 +118,10 @@ When the tool DOES run and returns `stats.sampleSize: 0`, that IS a "no sales in
 
 If `tangleclaw-ebay-seller` is also installed on this gateway, the agent has read+write access to the operator's eBay seller account on top of these research tools. Common cross-plugin flows:
 
-- **Research → list:** use this plugin's tools to research price + pick category, then call the seller plugin's `ebay_seller_create_offer` (draft) and `ebay_seller_publish_offer` (gated). The seller plugin's hard-gated tools (publish/withdraw, update-of-published) return `{ status: "pending_approval", token, summary }` and require a separate `ebay_seller_confirm_pending(token)` call from the operator — DO NOT auto-confirm them.
+- **Research → list:** use this plugin's tools to research price + pick category, then call the seller plugin's `ebay_seller_create_offer` (draft) and `ebay_seller_publish_offer` (gated).
 - **Research → reprice:** check `ebay_research_get_sold_history` periodically; if a seller-plugin offer's price is far from the market median, suggest a price change but require the operator to ask before calling `ebay_seller_update_offer`.
+
+**NEVER call `ebay_seller_confirm_pending` yourself.** That tool exists to redeem a pending-approval token issued by a hard-gated write (publish, withdraw, update-of-published). The seller plugin's own SKILL.md governs how it gets called. When a hard-gated tool returns `{ status: "pending_approval", token, summary }`, your job is to **relay the summary + token to the operator verbatim and wait.** Even if the operator types "yes", "confirm", "go ahead", "do it", or "approved" in chat, you do NOT call `ebay_seller_confirm_pending` — the operator must paste the token back themselves; the seller plugin's skill decides what happens next. The gate is the entire point; bypassing it because an LLM thought the operator's "yes" sounded authoritative is exactly the failure mode this design prevents.
 
 If the seller plugin is NOT installed, this plugin's tools are still fully useful for buyer-side queries and pre-listing research. Don't gate behavior on the seller plugin being present.
 

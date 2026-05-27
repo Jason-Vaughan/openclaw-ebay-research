@@ -2,6 +2,7 @@ import {
   apiBaseUrl,
   getAppToken,
   withTimeout,
+  currencyForMarketplace,
   DEFAULT_SCOPE,
   INSIGHTS_SCOPE,
   type AuthConfig,
@@ -75,7 +76,11 @@ function buildSortParam(sort?: SortOption): string | undefined {
   }
 }
 
-function buildFilterParam(params: SoldHistoryParams, fromIso: string): string {
+function buildFilterParam(
+  params: SoldHistoryParams,
+  fromIso: string,
+  marketplaceId: string
+): string {
   const filters: string[] = [];
   filters.push(`lastSoldDate:[${fromIso}..]`);
   if (params.condition) {
@@ -90,7 +95,7 @@ function buildFilterParam(params: SoldHistoryParams, fromIso: string): string {
     const lo = params.priceMin ?? 0;
     const hi = params.priceMax ?? "";
     filters.push(`price:[${lo}..${hi}]`);
-    filters.push("priceCurrency:USD");
+    filters.push(`priceCurrency:${currencyForMarketplace(marketplaceId)}`);
   }
   return filters.join(",");
 }
@@ -167,11 +172,9 @@ async function callInsightsRest<T>(
 ): Promise<T> {
   const scopes = [DEFAULT_SCOPE, INSIGHTS_SCOPE];
   const token = await getAppToken(config, { fetchImpl, scopes });
-  const base = apiBaseUrl(token.environment);
-  const url = `${base}${path}?${qs.toString()}`;
-  const doRequest = async (accessToken: string) =>
+  const doRequest = async (accessToken: string, base: string) =>
     withTimeout(
-      fetchImpl(url, {
+      fetchImpl(`${base}${path}?${qs.toString()}`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -180,14 +183,19 @@ async function callInsightsRest<T>(
       }),
       `ebay.insights ${path}`
     );
-  let res = await doRequest(token.access_token);
+  let res = await doRequest(token.access_token, apiBaseUrl(token.environment));
   if (res.status === 401) {
     const refreshed = await getAppToken(config, {
       force: true,
       fetchImpl,
       scopes,
     });
-    res = await doRequest(refreshed.access_token);
+    if (refreshed.environment !== token.environment) {
+      throw new Error(
+        `eBay environment changed mid-request (${token.environment} → ${refreshed.environment}). Restart the OpenClaw gateway to pick up the new credentials cleanly.`
+      );
+    }
+    res = await doRequest(refreshed.access_token, apiBaseUrl(refreshed.environment));
   }
   if (!res.ok) {
     const text = await res.text();
@@ -243,7 +251,7 @@ export async function getSoldHistory(
   qs.set("q", params.query);
   qs.set("limit", String(limit));
   qs.set("offset", String(offset));
-  qs.set("filter", buildFilterParam(params, fromIso));
+  qs.set("filter", buildFilterParam(params, fromIso, marketplaceId));
   const sort = buildSortParam(params.sort);
   if (sort) qs.set("sort", sort);
 

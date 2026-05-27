@@ -106,23 +106,34 @@ describe("computeStats", () => {
 describe("buildFilterParam (insights)", () => {
   const fromIso = "2026-02-26T00:00:00.000Z";
   it("always includes lastSoldDate", () => {
-    const f = _internal.buildFilterParam({ query: "x" }, fromIso);
+    const f = _internal.buildFilterParam({ query: "x" }, fromIso, "EBAY_US");
     expect(f).toContain(`lastSoldDate:[${fromIso}..]`);
   });
   it("adds conditions filter", () => {
     const f = _internal.buildFilterParam(
       { query: "x", condition: "USED" },
-      fromIso
+      fromIso,
+      "EBAY_US"
     );
     expect(f).toContain("conditions:{USED}");
   });
-  it("adds price range filter", () => {
+  it("adds USD price range filter for EBAY_US", () => {
     const f = _internal.buildFilterParam(
       { query: "x", priceMin: 50, priceMax: 500 },
-      fromIso
+      fromIso,
+      "EBAY_US"
     );
     expect(f).toContain("price:[50..500]");
     expect(f).toContain("priceCurrency:USD");
+  });
+  it("adds GBP price range filter for EBAY_GB", () => {
+    const f = _internal.buildFilterParam(
+      { query: "x", priceMin: 50, priceMax: 500 },
+      fromIso,
+      "EBAY_GB"
+    );
+    expect(f).toContain("priceCurrency:GBP");
+    expect(f).not.toContain("priceCurrency:USD");
   });
 });
 
@@ -263,6 +274,68 @@ describe("getSoldHistory", () => {
     await expect(
       getSoldHistory(authConfig(), { query: "x" }, fetchMock)
     ).rejects.toThrow(/Marketplace Insights access/);
+  });
+
+  it("retries once on 401 with a fresh token", async () => {
+    await writeBroadToken();
+    let calls = 0;
+    const fetchMock = (async (url: string) => {
+      calls += 1;
+      if (calls === 1) {
+        // first attempt at the insights endpoint → 401
+        return new Response(
+          JSON.stringify({ errors: [{ errorId: 1001, message: "expired" }] }),
+          { status: 401, statusText: "Unauthorized" }
+        );
+      }
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return jsonResponse({
+          access_token: "fresh",
+          token_type: "App",
+          expires_in: 7200,
+          scope: `${DEFAULT_SCOPE} ${INSIGHTS_SCOPE}`,
+        });
+      }
+      return jsonResponse({ total: 0, limit: 50, offset: 0, itemSales: [] });
+    }) as unknown as typeof fetch;
+    const result = await getSoldHistory(authConfig(), { query: "x" }, fetchMock);
+    expect(result.stats.sampleSize).toBe(0);
+  });
+
+  it("throws on 401-retry when environment changes mid-request", async () => {
+    await writeBroadToken();
+    let calls = 0;
+    const fetchMock = (async (url: string) => {
+      calls += 1;
+      if (calls === 1) {
+        // First insights request → 401. Swap creds to production HERE so
+        // the next force-refresh reads the new env.
+        await writeFile(
+          credsPath,
+          JSON.stringify({
+            client_id: "cid",
+            cert_id: "secret",
+            environment: "production",
+          })
+        );
+        return new Response(
+          JSON.stringify({ errors: [{ errorId: 1001, message: "expired" }] }),
+          { status: 401, statusText: "Unauthorized" }
+        );
+      }
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return jsonResponse({
+          access_token: "prod",
+          token_type: "App",
+          expires_in: 7200,
+          scope: `${DEFAULT_SCOPE} ${INSIGHTS_SCOPE}`,
+        });
+      }
+      return jsonResponse({ total: 0, itemSales: [] });
+    }) as unknown as typeof fetch;
+    await expect(
+      getSoldHistory(authConfig(), { query: "x" }, fetchMock)
+    ).rejects.toThrow(/environment changed mid-request/);
   });
 
   it("falls back to price when lastSoldPrice missing", async () => {

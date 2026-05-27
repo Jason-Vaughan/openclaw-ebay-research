@@ -98,12 +98,10 @@ async function callEbayRest<T>(
   fetchImpl: typeof fetch
 ): Promise<T> {
   const token = await getAppToken(config, { fetchImpl });
-  const base = apiBaseUrl(token.environment);
   const qs = params && Array.from(params.keys()).length > 0 ? `?${params.toString()}` : "";
-  const url = `${base}${path}${qs}`;
-  const doRequest = async (accessToken: string) =>
+  const doRequest = async (accessToken: string, base: string) =>
     withTimeout(
-      fetchImpl(url, {
+      fetchImpl(`${base}${path}${qs}`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
@@ -112,10 +110,15 @@ async function callEbayRest<T>(
       `ebay.taxonomy ${path}`
     );
 
-  let res = await doRequest(token.access_token);
+  let res = await doRequest(token.access_token, apiBaseUrl(token.environment));
   if (res.status === 401) {
     const refreshed = await getAppToken(config, { force: true, fetchImpl });
-    res = await doRequest(refreshed.access_token);
+    if (refreshed.environment !== token.environment) {
+      throw new Error(
+        `eBay environment changed mid-request (${token.environment} → ${refreshed.environment}). Restart the OpenClaw gateway to pick up the new credentials cleanly.`
+      );
+    }
+    res = await doRequest(refreshed.access_token, apiBaseUrl(refreshed.environment));
   }
   if (!res.ok) {
     const text = await res.text();

@@ -1,4 +1,10 @@
-import { apiBaseUrl, getAppToken, withTimeout, type AuthConfig } from "./auth.js";
+import {
+  apiBaseUrl,
+  getAppToken,
+  withTimeout,
+  currencyForMarketplace,
+  type AuthConfig,
+} from "./auth.js";
 
 export type SortOption = "price_asc" | "price_desc" | "best_match" | "newly_listed";
 export type ConditionFilter = "NEW" | "USED" | "UNSPECIFIED" | "CERTIFIED_REFURBISHED" | "SELLER_REFURBISHED" | "MANUFACTURER_REFURBISHED" | "FOR_PARTS_OR_NOT_WORKING";
@@ -66,7 +72,10 @@ function buildSortParam(sort?: SortOption): string | undefined {
   }
 }
 
-function buildFilterParam(params: SearchParams): string | undefined {
+function buildFilterParam(
+  params: SearchParams,
+  marketplaceId: string
+): string | undefined {
   const filters: string[] = [];
   if (params.condition) {
     const conditions = Array.isArray(params.condition)
@@ -80,7 +89,7 @@ function buildFilterParam(params: SearchParams): string | undefined {
     const lo = params.priceMin ?? 0;
     const hi = params.priceMax ?? "";
     filters.push(`price:[${lo}..${hi}]`);
-    filters.push("priceCurrency:USD");
+    filters.push(`priceCurrency:${currencyForMarketplace(marketplaceId)}`);
   }
   return filters.length > 0 ? filters.join(",") : undefined;
 }
@@ -103,12 +112,10 @@ async function callBrowse<T>(
   fetchImpl: typeof fetch = fetch
 ): Promise<T> {
   const token = await getAppToken(config, { fetchImpl });
-  const base = apiBaseUrl(token.environment);
   const qs = params && Array.from(params.keys()).length > 0 ? `?${params.toString()}` : "";
-  const url = `${base}${path}${qs}`;
-  const doRequest = async (accessToken: string) =>
+  const doRequest = async (accessToken: string, base: string) =>
     withTimeout(
-      fetchImpl(url, {
+      fetchImpl(`${base}${path}${qs}`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "X-EBAY-C-MARKETPLACE-ID": marketplaceId,
@@ -118,10 +125,15 @@ async function callBrowse<T>(
       `ebay.browse ${path}`
     );
 
-  let res = await doRequest(token.access_token);
+  let res = await doRequest(token.access_token, apiBaseUrl(token.environment));
   if (res.status === 401) {
     const refreshed = await getAppToken(config, { force: true, fetchImpl });
-    res = await doRequest(refreshed.access_token);
+    if (refreshed.environment !== token.environment) {
+      throw new Error(
+        `eBay environment changed mid-request (${token.environment} → ${refreshed.environment}). Restart the OpenClaw gateway to pick up the new credentials cleanly.`
+      );
+    }
+    res = await doRequest(refreshed.access_token, apiBaseUrl(refreshed.environment));
   }
   if (!res.ok) {
     const text = await res.text();
@@ -169,6 +181,11 @@ export async function searchActiveListings(
   if (offset < 0) {
     throw new Error("searchActiveListings: offset must be >= 0.");
   }
+  if (offset + limit > 10_000) {
+    throw new Error(
+      "searchActiveListings: offset + limit must be <= 10000 (eBay Browse hard cap)."
+    );
+  }
   const marketplaceId = params.marketplaceId ?? DEFAULT_MARKETPLACE;
   const qs = new URLSearchParams();
   qs.set("q", params.query);
@@ -176,7 +193,7 @@ export async function searchActiveListings(
   qs.set("offset", String(offset));
   const sort = buildSortParam(params.sort);
   if (sort) qs.set("sort", sort);
-  const filter = buildFilterParam(params);
+  const filter = buildFilterParam(params, marketplaceId);
   if (filter) qs.set("filter", filter);
   if (params.categoryIds && params.categoryIds.length > 0) {
     qs.set("category_ids", params.categoryIds.join(","));
