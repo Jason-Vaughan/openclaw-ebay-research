@@ -88,6 +88,10 @@ Until access is granted, leave `enableInsights = false`. The tool will still be 
 
 - [`@tangleclaw/openclaw-ebay-seller`](https://github.com/Jason-Vaughan/openclaw-ebay-seller) (sister plugin — read+write seller-side tools with OAuth + approval gating). The seller plugin's `create_offer` needs a category_id, which is exactly what this plugin's `ebay_research_get_category_suggestions` returns. Install both side-by-side.
 
+## More from @tangleclaw
+
+- [`@tangleclaw/openclaw-google-oauth`](https://github.com/Jason-Vaughan/openclaw-google-oauth) — Google Workspace tools for your OpenClaw agent (Gmail, Calendar, Drive, Docs, Sheets, Slides) via direct OAuth. Useful alongside this plugin when your agent needs to email Gmail summaries of eBay research, drop a sold-price comparison into a Drive spreadsheet, or schedule a Calendar reminder around a listing window. Install: `openclaw plugins install clawhub:@tangleclaw/openclaw-google-oauth`.
+
 ## Out of scope (deferred to later versions)
 
 - Bulk pricing-engine analysis across many SKUs.
