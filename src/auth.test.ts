@@ -10,6 +10,8 @@ import {
   getAuthStatus,
   apiBaseUrl,
   withTimeout,
+  DEFAULT_SCOPE,
+  INSIGHTS_SCOPE,
 } from "./auth.js";
 
 let workDir: string;
@@ -325,6 +327,81 @@ describe("getAuthStatus", () => {
     });
     expect(status.connected).toBe(false);
     expect(status.credentials_present).toBe(true);
+  });
+});
+
+describe("getAppToken with custom scopes", () => {
+  it("requests space-joined scopes in the token body", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    let capturedBody = "";
+    const fetchMock = (async (_url: string, init: RequestInit) => {
+      capturedBody = (init.body as URLSearchParams).toString();
+      return new Response(
+        JSON.stringify({ access_token: "broad", token_type: "App", expires_in: 7200 }),
+        { status: 200 }
+      );
+    }) as unknown as typeof fetch;
+    const token = await getAppToken(
+      { credentialsPath: credsPath, tokenPath },
+      { fetchImpl: fetchMock, scopes: [DEFAULT_SCOPE, INSIGHTS_SCOPE] }
+    );
+    // application/x-www-form-urlencoded uses `+` for spaces; decode with that in mind.
+    const decoded = decodeURIComponent(capturedBody).replace(/\+/g, " ");
+    expect(decoded).toContain(`${DEFAULT_SCOPE} ${INSIGHTS_SCOPE}`);
+    expect(token.scopes).toEqual([DEFAULT_SCOPE, INSIGHTS_SCOPE]);
+  });
+
+  it("refreshes when cached token is missing a required scope", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    await writeFile(
+      tokenPath,
+      JSON.stringify({
+        access_token: "narrow",
+        token_type: "App",
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        environment: "sandbox",
+        scopes: [DEFAULT_SCOPE],
+      })
+    );
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({ access_token: "broad", token_type: "App", expires_in: 7200 }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+    const token = await getAppToken(
+      { credentialsPath: credsPath, tokenPath },
+      { fetchImpl: fetchMock, scopes: [DEFAULT_SCOPE, INSIGHTS_SCOPE] }
+    );
+    expect(token.access_token).toBe("broad");
+    expect(token.scopes).toContain(INSIGHTS_SCOPE);
+  });
+
+  it("reuses a cached token that has a superset of requested scopes", async () => {
+    const credsPath = await writeCredentialsFile({ client_id: "cid", cert_id: "secret" });
+    const tokenPath = join(workDir, "token.json");
+    await writeFile(
+      tokenPath,
+      JSON.stringify({
+        access_token: "broad",
+        token_type: "App",
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        environment: "sandbox",
+        scopes: [DEFAULT_SCOPE, INSIGHTS_SCOPE],
+      })
+    );
+    let calls = 0;
+    const fetchMock = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const token = await getAppToken(
+      { credentialsPath: credsPath, tokenPath },
+      { fetchImpl: fetchMock, scopes: [DEFAULT_SCOPE] }
+    );
+    expect(calls).toBe(0);
+    expect(token.access_token).toBe("broad");
   });
 });
 

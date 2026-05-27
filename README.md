@@ -26,6 +26,7 @@ Every search result includes the canonical eBay `itemWebUrl`, so the agent can h
 | `ebay_research_get_item` | Fetch full detail for one item by item_id. Includes itemWebUrl, seller info, shipping, full description. |
 | `ebay_research_get_category_suggestions` | "What category does this go in on eBay?" — free-text query → ranked list of suggestions with `categoryId`, `categoryName`, and full ancestor chain. The `categoryId` is exactly what `openclaw-ebay-seller`'s `create_offer` needs. |
 | `ebay_research_get_category_subtree` | Drill down one level into a category by category_id. Each child node carries its own categoryId for further drill-down plus an `isLeaf` flag (sellable leaves are what `create_offer` requires). |
+| `ebay_research_get_sold_history` | Historical SOLD listings + aggregate stats (min/max/mean/median/p25/p75) over a date window (default 90 days, max 90). Distinct from `search_active_listings` (which shows current asking prices). **Requires `enableInsights: true` AND eBay-granted Marketplace Insights API access.** When disabled, returns `{ status: 'disabled', reason }` so the agent can explain. |
 
 ## Install
 
@@ -62,6 +63,18 @@ Configurable via `plugins.entries.tangleclaw-ebay-research.config.*`:
 | `credentialsPath` | `~/.openclaw/secrets/ebay-research-credentials.json` | Path to the eBay app credentials JSON. |
 | `tokenPath` | `~/.openclaw/secrets/ebay-research-app-token.json` | Path where the cached app token is written + read. |
 | `defaultMarketplaceId` | `EBAY_US` | Default marketplace for searches if the agent doesn't specify one. |
+| `enableInsights` | `false` | Enable `ebay_research_get_sold_history`. Requires eBay-granted Marketplace Insights API access; leave `false` until granted. |
+
+### Enabling Marketplace Insights (sold-listing data)
+
+`ebay_research_get_sold_history` calls eBay's **Marketplace Insights API**, which is a gated surface — you must apply for access through the eBay Developer portal before it works:
+
+1. Sign in at <https://developer.ebay.com/> with your developer account.
+2. Apply for **Marketplace Insights API** access (the listing is at the bottom of the API catalog page; approval is a separate process from regular app registration).
+3. Once eBay grants access, set `plugins.entries.tangleclaw-ebay-research.config.enableInsights = true` and restart your OpenClaw gateway.
+4. The plugin will request the additional `buy.marketplace.insights` OAuth scope automatically.
+
+Until access is granted, leave `enableInsights = false`. The tool will still be visible to agents but will return a clear `{ status: "disabled", reason: "..." }` response rather than hitting an authorization error.
 
 ## How it works
 

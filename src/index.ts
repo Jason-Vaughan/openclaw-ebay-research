@@ -11,6 +11,7 @@ import {
   getCategorySuggestions,
   getCategorySubtree,
 } from "./taxonomy.js";
+import { getSoldHistory } from "./insights.js";
 
 const configSchema = Type.Object({
   credentialsPath: Type.String({
@@ -27,6 +28,11 @@ const configSchema = Type.Object({
     default: "EBAY_US",
     description:
       "Marketplace used when the agent doesn't specify one (e.g., EBAY_US, EBAY_GB, EBAY_DE).",
+  }),
+  enableInsights: Type.Boolean({
+    default: false,
+    description:
+      "Enable the ebay_research_get_sold_history tool. Requires eBay-granted Marketplace Insights API access (apply via the eBay Developer portal). When false, the tool returns a clear 'disabled' status without calling the API.",
   }),
 });
 
@@ -241,6 +247,79 @@ export default defineToolPlugin({
           query: params.query,
           marketplaceId,
           limit: params.limit,
+        });
+      },
+    }),
+    tool({
+      name: "ebay_research_get_sold_history",
+      label: "Get eBay Sold History",
+      description:
+        "READ / FETCH historical SOLD listings on eBay for a query, over a date window (default 90 days, max 90 — Marketplace Insights API cap). ALWAYS call this tool — do not guess — whenever the operator asks: what did X actually sell for, what's the going rate for X, what have X been selling at, sold history for X, completed sales for X, how much did X sell for last month. Returns aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in USD) PLUS the raw sold-item list (with `itemWebUrl` for each). Distinct from `ebay_research_search_active_listings` (which shows current ASKING prices on live listings). REQUIRES `enableInsights: true` in plugin config AND an eBay-granted Marketplace Insights API access (apply at https://developer.ebay.com/). When disabled, returns a structured `{ status: 'disabled', reason }` rather than failing — that means access isn't configured, NOT that no sales happened.",
+      parameters: Type.Object({
+        query: Type.String({
+          description:
+            "Search keywords. Examples: 'nikon d750 body', 'macbook pro 16 m1 2021', 'levi 501 raw'.",
+        }),
+        days: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: 90,
+            default: 90,
+            description: "Look-back window in days (1-90, capped by eBay).",
+          })
+        ),
+        condition: Type.Optional(
+          Type.Union(
+            [
+              Type.Literal("NEW"),
+              Type.Literal("USED"),
+              Type.Literal("UNSPECIFIED"),
+              Type.Literal("CERTIFIED_REFURBISHED"),
+              Type.Literal("SELLER_REFURBISHED"),
+              Type.Literal("MANUFACTURER_REFURBISHED"),
+              Type.Literal("FOR_PARTS_OR_NOT_WORKING"),
+            ],
+            { description: "Filter to a single condition. Most common: NEW or USED." }
+          )
+        ),
+        priceMin: Type.Optional(Type.Number({ minimum: 0 })),
+        priceMax: Type.Optional(Type.Number({ minimum: 0 })),
+        marketplaceId: Type.Optional(
+          Type.String({ description: "eBay marketplace id (default EBAY_US)." })
+        ),
+        limit: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: 100,
+            default: 50,
+            description: "Page size (1-100). Larger sample = better statistics.",
+          })
+        ),
+        offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+      }),
+      async execute(params, config) {
+        const insightsEnabled = (config as { enableInsights?: boolean }).enableInsights ?? false;
+        if (!insightsEnabled) {
+          return {
+            status: "disabled",
+            reason:
+              "Marketplace Insights tool is disabled. Set plugins.entries.tangleclaw-ebay-research.config.enableInsights=true to enable, AND ensure your eBay app has been granted Marketplace Insights API access (apply at https://developer.ebay.com/).",
+          };
+        }
+        const cfg = authConfig(config);
+        const marketplaceId =
+          params.marketplaceId ??
+          (config as { defaultMarketplaceId?: string }).defaultMarketplaceId ??
+          "EBAY_US";
+        return getSoldHistory(cfg, {
+          query: params.query,
+          days: params.days,
+          condition: params.condition as ConditionFilter | undefined,
+          priceMin: params.priceMin,
+          priceMax: params.priceMax,
+          marketplaceId,
+          limit: params.limit,
+          offset: params.offset,
         });
       },
     }),

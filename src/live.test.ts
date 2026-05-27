@@ -5,6 +5,7 @@ import { access } from "node:fs/promises";
 import { getAppToken, getAuthStatus } from "./auth.js";
 import { searchActiveListings } from "./browse.js";
 import { getCategorySuggestions, getCategorySubtree } from "./taxonomy.js";
+import { getSoldHistory } from "./insights.js";
 
 const LIVE_ENABLED = process.env.RUN_LIVE_TESTS === "1";
 
@@ -81,6 +82,26 @@ describeIfLive("live eBay Browse API integration", () => {
       { categoryId: top }
     );
     expect(subtree.root.categoryId).toBe(top);
+  });
+});
+
+const INSIGHTS_ENABLED =
+  LIVE_ENABLED && process.env.RUN_INSIGHTS_TESTS === "1";
+const describeIfInsights = INSIGHTS_ENABLED ? describe : describe.skip;
+
+describeIfInsights("live Marketplace Insights API integration", () => {
+  it("can fetch sold history for a common query", async () => {
+    if (!(await credentialsAvailable())) return;
+    const result = await getSoldHistory(
+      { credentialsPath: credsPath, tokenPath },
+      { query: "nikon d750", days: 90, limit: 25 }
+    );
+    expect(result.windowDays).toBe(90);
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.stats.sampleSize).toBeGreaterThan(0);
+    if (result.stats.median !== undefined) {
+      expect(result.stats.median).toBeGreaterThan(0);
+    }
   });
 });
 

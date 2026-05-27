@@ -30,6 +30,11 @@
         "type": "string",
         "default": "EBAY_US",
         "description": "Marketplace used when the agent doesn't specify one (e.g., EBAY_US, EBAY_GB, EBAY_DE)."
+      },
+      "enableInsights": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable the ebay_research_get_sold_history tool. Requires eBay-granted Marketplace Insights API access (apply via the eBay Developer portal). When false, the tool returns a clear 'disabled' status without calling the API."
       }
     }
   },
@@ -39,7 +44,8 @@
       "ebay_research_search_active_listings",
       "ebay_research_get_item",
       "ebay_research_get_category_suggestions",
-      "ebay_research_get_category_subtree"
+      "ebay_research_get_category_subtree",
+      "ebay_research_get_sold_history"
     ]
   }
 }

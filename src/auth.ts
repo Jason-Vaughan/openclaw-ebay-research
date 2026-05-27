@@ -23,7 +23,9 @@ export interface CachedAppToken {
   scopes: string[];
 }
 
-const DEFAULT_SCOPE = "https://api.ebay.com/oauth/api_scope";
+export const DEFAULT_SCOPE = "https://api.ebay.com/oauth/api_scope";
+export const INSIGHTS_SCOPE =
+  "https://api.ebay.com/oauth/api_scope/buy.marketplace.insights";
 
 const SANDBOX_BASE = "https://api.sandbox.ebay.com";
 const PRODUCTION_BASE = "https://api.ebay.com";
@@ -83,12 +85,18 @@ async function writeCachedToken(
 function isTokenFresh(
   token: CachedAppToken,
   env: EbayEnvironment,
+  requiredScopes: string[],
   now: number = Date.now()
 ): boolean {
   if (token.environment !== env) return false;
   const expiresAt = Date.parse(token.expires_at);
   if (Number.isNaN(expiresAt)) return false;
-  return expiresAt - now > REFRESH_SAFETY_WINDOW_MS;
+  if (expiresAt - now <= REFRESH_SAFETY_WINDOW_MS) return false;
+  const cached = new Set(token.scopes);
+  for (const scope of requiredScopes) {
+    if (!cached.has(scope)) return false;
+  }
+  return true;
 }
 
 interface TokenResponse {
@@ -104,7 +112,8 @@ interface TokenError {
 
 export async function requestAppToken(
   creds: Credentials,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  scopes: string[] = [DEFAULT_SCOPE]
 ): Promise<CachedAppToken> {
   const tokenUrl = `${apiBaseUrl(creds.environment)}/identity/v1/oauth2/token`;
   const basic = Buffer.from(`${creds.client_id}:${creds.cert_id}`).toString(
@@ -112,7 +121,7 @@ export async function requestAppToken(
   );
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    scope: DEFAULT_SCOPE,
+    scope: scopes.join(" "),
   });
   const res = await withTimeout(
     fetchImpl(tokenUrl, {
@@ -147,22 +156,27 @@ export async function requestAppToken(
     token_type: data.token_type,
     expires_at: expiresAt,
     environment: creds.environment,
-    scopes: [DEFAULT_SCOPE],
+    scopes,
   };
 }
 
 export async function getAppToken(
   config: AuthConfig,
-  options: { force?: boolean; fetchImpl?: typeof fetch } = {}
+  options: {
+    force?: boolean;
+    fetchImpl?: typeof fetch;
+    scopes?: string[];
+  } = {}
 ): Promise<CachedAppToken> {
   const creds = await readCredentials(config.credentialsPath);
+  const scopes = options.scopes ?? [DEFAULT_SCOPE];
   if (!options.force) {
     const cached = await readCachedToken(config.tokenPath);
-    if (cached && isTokenFresh(cached, creds.environment)) {
+    if (cached && isTokenFresh(cached, creds.environment, scopes)) {
       return cached;
     }
   }
-  const fresh = await requestAppToken(creds, options.fetchImpl);
+  const fresh = await requestAppToken(creds, options.fetchImpl, scopes);
   await writeCachedToken(config.tokenPath, fresh);
   return fresh;
 }
@@ -192,7 +206,7 @@ export async function getAuthStatus(
     };
   }
   const cached = await readCachedToken(config.tokenPath);
-  if (cached && isTokenFresh(cached, creds.environment)) {
+  if (cached && isTokenFresh(cached, creds.environment, [DEFAULT_SCOPE])) {
     return {
       connected: true,
       environment: cached.environment,

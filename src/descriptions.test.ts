@@ -88,4 +88,15 @@ describe("description quality", () => {
     expect(sub).toBeTruthy();
     expect(sub!.description.toLowerCase()).toContain("isleaf");
   });
+
+  it("sold-history description distinguishes itself from active-listings + flags Insights gating", () => {
+    const tools = collectTools();
+    const sold = tools.find((t) => t.name === "ebay_research_get_sold_history");
+    expect(sold).toBeTruthy();
+    const desc = sold!.description.toLowerCase();
+    expect(desc).toContain("sold");
+    expect(desc).toContain("insights");
+    expect(desc).toContain("enableinsights");
+    expect(desc).toContain("active_listings");
+  });
 });

@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Chunk R3 — Marketplace Insights tool (2026-05-26).** New read tool `ebay_research_get_sold_history(query, days?, condition?, priceMin?, priceMax?, marketplaceId?, limit?, offset?)`. Returns aggregate stats (sampleSize, total, min/max/mean/median/p25/p75 in USD) plus the raw sold-item list (each with `itemWebUrl`). Distinct from `search_active_listings` — that's current ASKING prices; this is historical SOLD prices over a 1-90 day window. **Feature-flagged:** disabled by default via `plugins.entries.tangleclaw-ebay-research.config.enableInsights = false`. When disabled, returns `{ status: 'disabled', reason: '...' }` rather than failing — the agent can explain rather than throwing. When enabled, requests the `buy.marketplace.insights` OAuth scope alongside the default scope; auth.ts grew an optional `scopes: string[]` parameter and a scope-superset cache check (cached token is reused only if it contains all requested scopes, otherwise refreshed). README has a new "Enabling Marketplace Insights" walkthrough covering eBay's gated approval process.
+
+### Changed
+
+- `requestAppToken` + `getAppToken` accept an optional `scopes: string[]` (defaults to `[DEFAULT_SCOPE]` — backward compatible). `isTokenFresh` now also checks `cached.scopes ⊇ requested.scopes`.
+- Exported `DEFAULT_SCOPE` and added `INSIGHTS_SCOPE` constants.
+
 - **Chunk R2 — Taxonomy API tools (2026-05-26).** Two new read tools land:
   - `ebay_research_get_category_suggestions` — free-text query → ranked category suggestions with `categoryId` + `categoryName` + full ancestor chain. The categoryId is exactly what the sister seller plugin's `create_offer` needs.
   - `ebay_research_get_category_subtree` — drill down one level into a category by category_id. Each child node carries an `isLeaf` flag (sellable leaves are what `create_offer` requires).

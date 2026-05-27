@@ -20,9 +20,9 @@ describe("plugin surface", () => {
     expect((plugin as { id: string }).id).toBe("tangleclaw-ebay-research");
   });
 
-  it("registers exactly 5 tools in v0.1 (auth + browse x2 + taxonomy x2)", () => {
+  it("registers exactly 6 tools in v0.1 (auth + browse x2 + taxonomy x2 + insights)", () => {
     const tools = collectTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(6);
   });
 
   it("registers all expected tool names", () => {
@@ -33,6 +33,7 @@ describe("plugin surface", () => {
       "ebay_research_get_category_subtree",
       "ebay_research_get_category_suggestions",
       "ebay_research_get_item",
+      "ebay_research_get_sold_history",
       "ebay_research_search_active_listings",
     ]);
   });
