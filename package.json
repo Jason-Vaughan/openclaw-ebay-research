@@ -1,7 +1,7 @@
 {
   "name": "@tangleclaw/openclaw-ebay-research",
-  "version": "0.2.0",
-  "description": "OpenClaw plugin for eBay read-only market research — search current listings, fetch item detail, look up categories, query sold-listing history (gated by eBay Marketplace Insights access). Direct REST calls via client_credentials OAuth (app token only, no seller account, no user OAuth, no MCP). Surfaces clickable itemWebUrl on every result so agents can hand operators links.",
+  "version": "0.2.1",
+  "description": "Read-only eBay market research for your OpenClaw agent — search live listings, fetch item detail, look up categories, query sold-listing history. Direct REST via client_credentials OAuth, app token only. No seller account, no user OAuth, no MCP server. Every result ships with a clickable itemWebUrl.",
   "type": "module",
   "license": "MIT",
   "author": "Jason Vaughan",
@@ -61,6 +61,12 @@
   "openclaw": {
     "extensions": [
       "./dist/index.js"
-    ]
+    ],
+    "compat": {
+      "pluginApi": ">=2026.5.22"
+    },
+    "build": {
+      "openclawVersion": "2026.5.22"
+    }
   }
 }
