@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-27
+
+### Internal
+
+- **ClawHub publish gate.** Added `openclaw.compat.pluginApi` (`>=2026.5.22`) and `openclaw.build.openclawVersion` (`2026.5.22`) to `package.json` so `clawhub package publish` accepts the plugin as an external code-plugin artifact. Pattern-lifted from `openclaw-google-oauth` v0.3.2.
+- **Human-readable description on ClawHub.** Rewrote the `description` field in both `package.json` and `openclaw.plugin.json` to follow the canonical README-opener style established for `@tangleclaw` plugins: opens with the operator's benefit ("Read-only eBay market research for your OpenClaw agent"), comma-lists the surfaces instead of parenthetically enumerating verbs, leads the differentiator with negative space ("No seller account, no user OAuth, no MCP server"), closes with the operator-facing payoff ("Every result ships with a clickable itemWebUrl"). No behavior change.
+- **GitHub Actions workflow** at `.github/workflows/publish-clawhub.yml` — auto-publishes to ClawHub on every `v*.*.*` tag push (and supports manual `workflow_dispatch` for republishing an existing tag if a publish fails). Copied wholesale from `openclaw-google-oauth`'s working setup. Requires a `CLAWHUB_TOKEN` repository secret.
+
 ## [0.2.0] - 2026-05-27
 
 ### Added
