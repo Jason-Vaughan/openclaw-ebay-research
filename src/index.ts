@@ -88,7 +88,7 @@ export default defineToolPlugin({
       name: "ebay_research_search_active_listings",
       label: "Search Active eBay Listings",
       description:
-        "SEARCH / FIND / LOOK UP / BROWSE current live eBay listings by keyword. ALWAYS call this tool — do not narrate, do not reuse previous results — whenever the operator asks: what does X sell for / cost on eBay, find me a deal on X, what's the cheapest X on eBay, find a Y condition X, what X are available, browse / search eBay for X, show me listings for X, what's listed on eBay right now for X. Live listings change minute-to-minute, so always re-run a fresh query — never assume an earlier result is still current. Returns up to `limit` items (default 10). Each item includes title, price, condition, seller, item_id, AND a clickable `itemWebUrl` (the canonical eBay URL the operator can open in their browser). CRITICAL — 'what does X cost / what's it going for / what's the price of X' is a MARKET-PRICE question, NOT a cheapest question: do NOT `sort='price_asc'` and do NOT report the lowest listing as 'the price'. For branded or high-value items (GPUs, cameras, phones, consoles, laptops...) the cheapest keyword matches are almost always ACCESSORIES — brackets, cables, fan shrouds, parts, manuals — that keyword-stuff the product name; sorting cheapest-first surfaces $13 junk while the real item sits below the fold. Defend against this: apply a `priceMin` floor sized to the item (hundreds, even thousands for a GPU/workstation) and/or a `categoryIds` filter, and report a representative middle-of-pack price, never the floor. For a real 'what is it worth' answer, PREFER `ebay_research_whats_selling` (it leads with the median of what's actually selling). ONLY use `sort='price_asc'` when the operator explicitly wants the cheapest / a deal / 'find me a cheap X'. Pass `condition` to filter to USED, NEW, etc. Pass `priceMax` to cap. Pass `priceMin` to floor (use liberally for expensive items). Pass `marketplaceId` (default EBAY_US) to switch markets. Pair with `ebay_research_get_item` to drill into a specific result.",
+        "SEARCH / FIND / LOOK UP / BROWSE current live eBay listings by keyword. ALWAYS call this tool — do not narrate, do not reuse previous results — whenever the operator asks: what does X sell for / cost on eBay, find me a deal on X, what's the cheapest X on eBay, find a Y condition X, what X are available, browse / search eBay for X, show me listings for X, what's listed on eBay right now for X. Live listings change minute-to-minute, so always re-run a fresh query — never assume an earlier result is still current. Returns up to `limit` items (default 10). Each item includes title, `price` (the current price — Buy-It-Now for fixed listings, the current high bid for auctions), `listingType` (AUCTION or FIXED_PRICE), `buyingOptions`, and for auctions `currentBidPrice` + `bidCount`, plus condition, seller, item_id, AND a clickable `itemWebUrl` (the canonical eBay URL the operator can open in their browser). ALWAYS show the price next to every listing you mention — and for an auction, label it 'current bid $X (N bids)', not a Buy-It-Now price. A bare title + link with no price is a failed answer. CRITICAL — 'what does X cost / what's it going for / what's the price of X' is a MARKET-PRICE question, NOT a cheapest question: do NOT `sort='price_asc'` and do NOT report the lowest listing as 'the price'. For branded or high-value items (GPUs, cameras, phones, consoles, laptops...) the cheapest keyword matches are almost always ACCESSORIES — brackets, cables, fan shrouds, parts, manuals — that keyword-stuff the product name; sorting cheapest-first surfaces $13 junk while the real item sits below the fold. Defend against this: apply a `priceMin` floor sized to the item (hundreds, even thousands for a GPU/workstation) and/or a `categoryIds` filter, and report a representative middle-of-pack price, never the floor. For a real 'what is it worth' answer, PREFER `ebay_research_whats_selling` (it leads with the median of what's actually selling). ONLY use `sort='price_asc'` when the operator explicitly wants the cheapest / a deal / 'find me a cheap X'. Pass `condition` to filter to USED, NEW, etc. Pass `priceMax` to cap. Pass `priceMin` to floor (use liberally for expensive items). Pass `marketplaceId` (default EBAY_US) to switch markets. Pair with `ebay_research_get_item` to drill into a specific result.",
       parameters: Type.Object({
         query: Type.String({
           description:
@@ -190,17 +190,32 @@ export default defineToolPlugin({
           limit: result.limit,
           offset: result.offset,
           count: result.items.length,
-          items: result.items.map((item) => ({
-            itemId: item.itemId,
-            title: item.title,
-            price: item.price,
-            condition: item.condition,
-            seller: item.seller,
-            itemLocation: item.itemLocation,
-            imageUrl: item.image?.imageUrl,
-            itemWebUrl: item.itemWebUrl,
-            shipping: item.shippingOptions?.[0]?.shippingCost,
-          })),
+          items: result.items.map((item) => {
+            const isAuction = (item.buyingOptions ?? []).includes("AUCTION");
+            return {
+              itemId: item.itemId,
+              title: item.title,
+              // `price` is the current price: Buy-It-Now for fixed-price
+              // listings, current high bid for auctions.
+              price: item.price,
+              buyingOptions: item.buyingOptions,
+              // For auctions, surface the bid explicitly so the agent can say
+              // "current bid $X (N bids)" rather than mislabeling it a BIN price.
+              currentBidPrice: item.currentBidPrice,
+              bidCount: item.bidCount,
+              listingType: isAuction
+                ? "AUCTION"
+                : (item.buyingOptions ?? []).includes("FIXED_PRICE")
+                  ? "FIXED_PRICE"
+                  : undefined,
+              condition: item.condition,
+              seller: item.seller,
+              itemLocation: item.itemLocation,
+              imageUrl: item.image?.imageUrl,
+              itemWebUrl: item.itemWebUrl,
+              shipping: item.shippingOptions?.[0]?.shippingCost,
+            };
+          }),
           next: result.next,
         };
       },

@@ -163,6 +163,39 @@ describe("searchActiveListings", () => {
     expect(result.items[0].itemWebUrl).toBe("https://www.ebay.com/itm/123");
   });
 
+  it("passes through auction fields (buyingOptions, currentBidPrice, bidCount)", async () => {
+    const fetchMock = (async () =>
+      new Response(
+        JSON.stringify({
+          total: 1,
+          limit: 5,
+          offset: 0,
+          itemSummaries: [
+            {
+              itemId: "v1|999|0",
+              title: "RTX PRO 6000 (auction)",
+              price: { value: "2100.00", currency: "USD" },
+              buyingOptions: ["AUCTION"],
+              currentBidPrice: { value: "2100.00", currency: "USD" },
+              bidCount: 7,
+              itemWebUrl: "https://www.ebay.com/itm/999",
+            },
+          ],
+        }),
+        { status: 200 }
+      )) as unknown as typeof fetch;
+
+    const result = await searchActiveListings(
+      authConfig(),
+      { query: "rtx pro 6000", limit: 5 },
+      fetchMock
+    );
+    const it0 = result.items[0];
+    expect(it0.buyingOptions).toEqual(["AUCTION"]);
+    expect(it0.currentBidPrice).toEqual({ value: "2100.00", currency: "USD" });
+    expect(it0.bidCount).toBe(7);
+  });
+
   it("passes sort + filter params when set", async () => {
     let capturedUrl = "";
     const fetchMock = (async (url: string) => {

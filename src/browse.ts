@@ -35,6 +35,12 @@ export interface SearchItemSummary {
   itemId: string;
   title: string;
   price?: { value: string; currency: string };
+  /** eBay buying options: FIXED_PRICE, AUCTION, BEST_OFFER (can be multiple). */
+  buyingOptions?: string[];
+  /** Present for auctions — the current high bid (distinct from `price`). */
+  currentBidPrice?: { value: string; currency: string };
+  /** Number of bids placed (auctions). */
+  bidCount?: number;
   condition?: string;
   conditionId?: string;
   itemWebUrl?: string;

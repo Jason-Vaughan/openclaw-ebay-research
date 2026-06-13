@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-13
+
+### Fixed
+
+- **Search results now carry the price prominently and distinguish auction bids
+  from Buy-It-Now.** A listings digest (e.g. the Discord "new listings" monitor)
+  was posting title + link with **no price** — the agent had `price` but wasn't
+  told to show it, and the tool didn't surface whether a listing was an auction
+  or fixed-price.
+  - `search_active_listings` now returns `listingType` (AUCTION / FIXED_PRICE),
+    `buyingOptions`, and — for auctions — `currentBidPrice` + `bidCount`, in
+    addition to `price`. (`browse.ts` maps the eBay fields; `index.ts` passes
+    them through with a derived `listingType`.)
+  - The tool description now mandates showing the price next to every listing
+    and labeling auctions as "current bid $X (N bids)", not a BIN price.
+  - **SKILL.md Rule two** is rewritten: every listing reference needs BOTH a
+    price AND its `itemWebUrl`; auctions are shown as bids, fixed-price as Buy It
+    Now. A bare title + link is called out as a failed answer.
+  - Tests: auction-field passthrough in `browse.test.ts`, plus description +
+    skill regression assertions.
+
 ## [0.3.3] - 2026-06-13
 
 ### Fixed

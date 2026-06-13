@@ -21,9 +21,14 @@ When a tool returns an error (e.g. `Marketplace not supported`, `query is requir
 
 What you must NOT do after an error: explain what you're going to do, narrate a recovery plan, propose multi-step approaches in prose, or say things like "Let me search for X first" without then actually searching in the same turn. Recovery narration without execution is the #1 way this skill fails the operator.
 
-## Rule two: always surface itemWebUrl when you mention a listing
+## Rule two: every listing you mention needs BOTH a price AND its itemWebUrl
 
-`search_active_listings` returns an `itemWebUrl` on every result — that's the canonical eBay URL the operator can open in their browser. **Whenever you describe a specific listing to the operator (in any format — bullet, sentence, table), include its `itemWebUrl`.** "$249 from seller jdoe1234" is much less useful than "$249 from seller jdoe1234 — `https://www.ebay.com/itm/...`". The links are the entire point of the tool returning them; never describe a price without the URL beside it.
+`search_active_listings` returns a `price` and an `itemWebUrl` on every result. **Whenever you describe a listing to the operator — in any format, including a Discord post or a cron digest — include both the price and the `itemWebUrl`.** A title + link with no price is a failed answer (it's the #1 thing operators come back annoyed about): "NVIDIA RTX PRO 6000 — https://ebay.com/itm/..." tells them nothing about cost.
+
+- For a **fixed-price** listing (`listingType: "FIXED_PRICE"`), the `price` is the Buy-It-Now price — show it as "$X".
+- For an **auction** (`listingType: "AUCTION"`), `price`/`currentBidPrice` is the **current bid** — label it "current bid $X (N bids)", never as a Buy-It-Now price. If `buyingOptions` also includes `FIXED_PRICE`, it has both a BIN and bidding; show both.
+
+So a listing line should read like: "NVIDIA RTX PRO 6000 Max-Q — **Buy It Now $3,499** — https://ebay.com/itm/..." or "… — **current bid $2,100 (7 bids)** — https://…". Never a bare title + link.
 
 ## Rule three: "what does X cost" is NOT "find the cheapest X" — and the cheapest result is usually an accessory
 

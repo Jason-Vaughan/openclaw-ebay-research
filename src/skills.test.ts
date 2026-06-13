@@ -58,6 +58,13 @@ describe("SKILL.md core rules", () => {
     expect(skill.toLowerCase()).toContain("surface");
   });
 
+  it("mandates a PRICE (with auction-bid vs Buy-It-Now) on every listing, not just a link", () => {
+    const s = skill.toLowerCase();
+    expect(s).toContain("both a price"); // price is required alongside the URL
+    expect(s).toContain("current bid"); // auctions labeled as bids
+    expect(s).toContain("buy it now");
+  });
+
   it("teaches that cheapest is not the price (accessory-contamination rule)", () => {
     const s = skill.toLowerCase();
     expect(s).toContain("rule three");

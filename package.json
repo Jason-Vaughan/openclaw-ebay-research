@@ -1,6 +1,6 @@
 {
   "name": "@jason-vaughan/openclaw-ebay-research",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Read-only eBay market research for your OpenClaw agent — search live listings, fetch item detail, look up categories, query sold-listing history. Direct REST via client_credentials OAuth, app token only. No seller account, no user OAuth, no MCP server. Every result ships with a clickable itemWebUrl.",
   "type": "module",
   "license": "MIT",

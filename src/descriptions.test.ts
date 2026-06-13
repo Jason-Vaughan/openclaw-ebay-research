@@ -56,6 +56,16 @@ describe("description quality", () => {
     expect(desc).toContain("condition");
   });
 
+  it("search tool mandates showing the price and distinguishing auction bid vs Buy-It-Now", () => {
+    const tools = collectTools();
+    const desc = tools
+      .find((t) => t.name === "ebay_research_search_active_listings")!
+      .description.toLowerCase();
+    expect(desc).toContain("always show the price");
+    expect(desc).toContain("current bid");
+    expect(desc).toContain("listingtype");
+  });
+
   it("search tool steers market-price questions away from cheapest-first (accessory guard)", () => {
     const tools = collectTools();
     const search = tools
