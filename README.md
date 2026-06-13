@@ -15,7 +15,7 @@ Every search result includes the canonical eBay `itemWebUrl`, so the agent can h
 
 ## Status
 
-**v0.1.0** — scaffold + first three tools (auth_status, search_active_listings, get_item). Sandbox-tested where live keys are available; deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place).
+**v0.2.3** — full read-only tool surface: auth status, active-listing search, item detail, category suggestions + subtree, and the gated sold-history tool (148 unit tests; hardened through independent Critic review). Published on [ClawHub](https://clawhub.io) as `@tangleclaw/openclaw-ebay-research`. Deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place). **Live-validated against eBay production 2026-06-12.**
 
 ## Tools
 
@@ -86,6 +86,16 @@ Until access is granted, leave `enableInsights = false`. The tool will still be 
 - Sandbox base URL: `https://api.sandbox.ebay.com`. Production: `https://api.ebay.com`. Decided by `environment` in your credentials file.
 - All HTTP requests have a 30-second timeout.
 - Errors return the eBay API's error code + message verbatim where possible.
+
+## eBay API compliance (your responsibility as operator)
+
+This plugin is a client for eBay's developer APIs. Installing it grants you **no** eBay API access — you bring your own eBay developer application and keyset, and your usage is governed by the agreements you accept when you register it:
+
+- **Your own keyset, your own agreement.** Each operator must register their own application at <https://developer.ebay.com/my/keys> and accept the [eBay API License Agreement](https://developer.ebay.com/join/api-license-agreement). The plugin authors are not a party to your agreement with eBay; one operator's keyset must never be shared with another deployment.
+- **Marketplace Account Deletion compliance.** eBay disables production keysets until you either stand up a deletion-notification endpoint or claim the exemption. This plugin persists no eBay user data, so the *"I do not persist eBay data"* exemption typically fits research-only deployments — but it is **your** attestation to make in the eBay portal.
+- **Stay inside the License Agreement's data rules.** The agreement restricts deriving marketplace-level statistics — e.g., average selling price or GMV for an eBay category, or sales/activity rates across listings — except where the information is specific to the authenticated user and shown only to that user. Use this plugin's results for your own research and pricing decisions; do not republish aggregates, resell eBay data, or build public analytics on top of it.
+- **Respect call limits.** The default limit (5,000 calls/day) is far above what interactive agent use produces. Don't wire these tools into high-frequency polling loops or bulk-harvesting jobs.
+- **Sold-history access is granted by eBay, not by this plugin.** `get_sold_history` works only after eBay approves your application for the Marketplace Insights API (see [Enabling Marketplace Insights](#enabling-marketplace-insights-sold-listing-data)).
 
 ## Pairs well with
 
