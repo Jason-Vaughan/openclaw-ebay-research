@@ -1,10 +1,16 @@
 # Changelog
 
-All notable changes to `@tangleclaw/openclaw-ebay-research` are documented in this file.
+All notable changes to `@jason-vaughan/openclaw-ebay-research` are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.3.2] - 2026-06-12
+
+### Internal
+
+- **Renamed the published ClawHub package scope `@tangleclaw/openclaw-ebay-research` → `@jason-vaughan/openclaw-ebay-research`** to consolidate all listings under the personal publisher (ClawHub welds a package's scope to its publisher, so a scope rename + republish is the only way to move it off the `@tangleclaw` org). **TangleClaw branding is retained** in the plugin's display name ("TangleClaw eBay Research") and its runtime id (`tangleclaw-ebay-research`, unchanged — so existing OpenClaw config entries and deployments keep working). README install commands updated to the new scope. The old `@tangleclaw/openclaw-ebay-research` listing is soft-deleted; install via `@jason-vaughan/openclaw-ebay-research` going forward. No code change.
 
 ## [0.3.1] - 2026-06-12
 

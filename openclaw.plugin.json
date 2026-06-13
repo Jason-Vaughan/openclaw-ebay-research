@@ -2,7 +2,7 @@
   "id": "tangleclaw-ebay-research",
   "name": "TangleClaw eBay Research",
   "description": "Read-only eBay market research for your OpenClaw agent — search live listings, fetch item detail, look up categories, query sold-listing history. Direct REST via client_credentials OAuth, app token only. No seller account, no user OAuth, no MCP server. Every result ships with a clickable itemWebUrl.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true
