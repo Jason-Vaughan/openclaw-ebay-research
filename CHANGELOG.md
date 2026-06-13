@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Internal
+
+- **README gains an "eBay API compliance (your responsibility as operator)" section.** Makes explicit what was previously implied: installing the plugin grants no eBay API access; each operator registers their own eBay application and accepts the eBay API License Agreement themselves; the Marketplace Account Deletion attestation (endpoint vs "I do not persist eBay data" exemption) is the operator's to make; the License Agreement's restrictions on deriving marketplace-level statistics (category-average prices, GMV, cross-listing sales rates) apply to how operators use the results — own-research/pricing use is the intended pattern, republishing aggregates is not; call limits should be respected (no polling loops / bulk harvesting); and sold-history access is granted by eBay (Marketplace Insights approval), not by the plugin. Also refreshed the stale `## Status` section (still said v0.1.0/3 tools) to reflect v0.2.3's full tool surface, ClawHub publication, and the first live production validation (2026-06-12). No behavior change.
+
 ## [0.2.3] - 2026-05-27
 
 ### Internal
