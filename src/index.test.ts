@@ -20,9 +20,9 @@ describe("plugin surface", () => {
     expect((plugin as { id: string }).id).toBe("tangleclaw-ebay-research");
   });
 
-  it("registers exactly 6 tools in v0.1 (auth + browse x2 + taxonomy x2 + insights)", () => {
+  it("registers exactly 7 tools (auth + browse x2 + sold-signal + taxonomy x2 + insights)", () => {
     const tools = collectTools();
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
   });
 
   it("registers all expected tool names", () => {
@@ -35,6 +35,7 @@ describe("plugin surface", () => {
       "ebay_research_get_item",
       "ebay_research_get_sold_history",
       "ebay_research_search_active_listings",
+      "ebay_research_whats_selling",
     ]);
   });
 
