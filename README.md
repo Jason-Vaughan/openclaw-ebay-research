@@ -1,4 +1,4 @@
-# @tangleclaw/openclaw-ebay-research
+# @jason-vaughan/openclaw-ebay-research
 
 **Read-only eBay market research for your [OpenClaw](https://openclaw.ai) agent** — search live listings, see what's *actually selling*, fetch item detail, look up the right category, and (with eBay Insights access) pull true sold-price history. Direct REST via the `client_credentials` OAuth flow: an app token only. **No seller account. No user OAuth. No MCP server. No third-party gateway.**
 
@@ -27,7 +27,7 @@ Every result ships with the canonical eBay `itemWebUrl`, so the agent hands you 
 
 ## Status
 
-**v0.3.0 — production-ready, 7 tools.** Auth status, active-listing search, **sales-velocity (`whats_selling`)**, item detail, category suggestions + subtree, and the gated sold-history tool. 163 unit tests; every release hardened through independent Critic review. Published on [ClawHub](https://clawhub.ai) as `@tangleclaw/openclaw-ebay-research` and **live-validated against eBay production (2026-06-12)**. Deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place).
+**v0.3.0 — production-ready, 7 tools.** Auth status, active-listing search, **sales-velocity (`whats_selling`)**, item detail, category suggestions + subtree, and the gated sold-history tool. 163 unit tests; every release hardened through independent Critic review. Published on [ClawHub](https://clawhub.ai) as `@jason-vaughan/openclaw-ebay-research` and **live-validated against eBay production (2026-06-12)**. Deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place).
 
 ## Tools
 
@@ -60,7 +60,7 @@ Every result ships with the canonical eBay `itemWebUrl`, so the agent hands you 
 3. **Install the plugin** into your OpenClaw gateway (typically inside the container):
 
    ```bash
-   openclaw plugins install clawhub:@tangleclaw/openclaw-ebay-research
+   openclaw plugins install clawhub:@jason-vaughan/openclaw-ebay-research
    openclaw plugins enable tangleclaw-ebay-research
    ```
 
@@ -112,11 +112,11 @@ This plugin is a client for eBay's developer APIs. Installing it grants you **no
 
 ## Pairs well with
 
-- [`@tangleclaw/openclaw-ebay-seller`](https://github.com/Jason-Vaughan/openclaw-ebay-seller) (sister plugin — read+write seller-side tools with OAuth + approval gating). The seller plugin's `create_offer` needs a category_id, which is exactly what this plugin's `ebay_research_get_category_suggestions` returns. Install both side-by-side.
+- [`@jason-vaughan/openclaw-ebay-seller`](https://github.com/Jason-Vaughan/openclaw-ebay-seller) (sister plugin — read+write seller-side tools with OAuth + approval gating). The seller plugin's `create_offer` needs a category_id, which is exactly what this plugin's `ebay_research_get_category_suggestions` returns. Install both side-by-side.
 
-## More from @tangleclaw
+## More from TangleClaw
 
-- [`@tangleclaw/openclaw-google-oauth`](https://github.com/Jason-Vaughan/openclaw-google-oauth) — Google Workspace tools for your OpenClaw agent (Gmail, Calendar, Drive, Docs, Sheets, Slides) via direct OAuth. Useful alongside this plugin when your agent needs to email Gmail summaries of eBay research, drop a sold-price comparison into a Drive spreadsheet, or schedule a Calendar reminder around a listing window. Install: `openclaw plugins install clawhub:@tangleclaw/openclaw-google-oauth`.
+- [`@jason-vaughan/openclaw-google-oauth`](https://github.com/Jason-Vaughan/openclaw-google-oauth) — Google Workspace tools for your OpenClaw agent (Gmail, Calendar, Drive, Docs, Sheets, Slides) via direct OAuth. Useful alongside this plugin when your agent needs to email Gmail summaries of eBay research, drop a sold-price comparison into a Drive spreadsheet, or schedule a Calendar reminder around a listing window. Install: `openclaw plugins install clawhub:@jason-vaughan/openclaw-google-oauth`.
 
 ## Out of scope (deferred to later versions)
 
