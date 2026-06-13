@@ -32,6 +32,7 @@ describe("SKILL.md mentions every tool by name", () => {
     "ebay_research_get_category_suggestions",
     "ebay_research_get_category_subtree",
     "ebay_research_get_sold_history",
+    "ebay_research_whats_selling",
   ];
   for (const tool of tools) {
     it(`mentions ${tool}`, () => {

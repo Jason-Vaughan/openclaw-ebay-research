@@ -12,6 +12,7 @@ import {
   getCategorySubtree,
 } from "./taxonomy.js";
 import { getSoldHistory } from "./insights.js";
+import { getSalesVelocity } from "./sold-signal.js";
 
 const configSchema = Type.Object({
   credentialsPath: Type.String({
@@ -230,6 +231,87 @@ export default defineToolPlugin({
         return getItem(cfg, {
           itemId: params.itemId,
           marketplaceId,
+        });
+      },
+    }),
+    tool({
+      name: "ebay_research_whats_selling",
+      label: "What's Actually Selling on eBay",
+      description:
+        "DEMAND-CHECK / SALES-VELOCITY signal: find which LIVE eBay listings for a query have actually sold units, and at what price. ALWAYS call this tool — do not narrate, do not substitute a plain search — whenever the operator asks: what is X actually selling for, is X selling, what do X really go for, how fast does X sell, show me listings with real sales, demand check on X, which X are moving, price X based on real sales. One call does everything internally: searches live listings, inspects the top sampleSize of them (default 10) for eBay's estimatedSoldQuantity, and returns only proven sellers (minSoldQuantity, default 1) sorted by units sold. Lead your pricing answer with stats.medianPrice (the safest anchor) plus stats.totalSoldQuantity; treat stats.soldWeightedMeanPrice as a secondary cross-check only (it weights each listing's CURRENT ask by LIFETIME units sold, so one high-volume listing can skew it). Price stats cover only the marketplace's primary currency; if stats.mixedCurrencies is true, off-currency listings were excluded from the stats. IMPORTANT: estimatedSoldQuantity is units sold on listings still LIVE at their current ask — it is NOT historical sold-transaction data. Distinct from `ebay_research_search_active_listings` (asking prices only, no sales evidence) and from `ebay_research_get_sold_history` (true historical sold prices; requires gated Marketplace Insights access). Costs ~1+sampleSize API calls, so prefer the default sampleSize unless the operator asks for broader coverage. Pass priceMin (or condition) to keep accessory/junk listings out of the sample.",
+      parameters: Type.Object({
+        query: Type.String({
+          description:
+            "Search keywords, same as search_active_listings. Examples: 'nikon d750 body', 'iphone 14 128gb unlocked'.",
+        }),
+        condition: Type.Optional(
+          Type.Union(
+            [
+              Type.Literal("NEW"),
+              Type.Literal("USED"),
+              Type.Literal("UNSPECIFIED"),
+              Type.Literal("CERTIFIED_REFURBISHED"),
+              Type.Literal("SELLER_REFURBISHED"),
+              Type.Literal("MANUFACTURER_REFURBISHED"),
+              Type.Literal("FOR_PARTS_OR_NOT_WORKING"),
+            ],
+            {
+              description:
+                "Filter to a single item condition. Most common: 'NEW' or 'USED'.",
+            }
+          )
+        ),
+        priceMin: Type.Optional(
+          Type.Number({
+            minimum: 0,
+            description:
+              "Minimum price filter — recommended to exclude accessory/junk listings keyword-stuffed with the product name.",
+          })
+        ),
+        priceMax: Type.Optional(
+          Type.Number({
+            minimum: 0,
+            description: "Maximum price filter (in marketplace currency, default USD).",
+          })
+        ),
+        marketplaceId: Type.Optional(
+          Type.String({
+            description:
+              "eBay marketplace id (e.g., EBAY_US, EBAY_GB). Defaults to the plugin's defaultMarketplaceId.",
+          })
+        ),
+        sampleSize: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: 20,
+            default: 10,
+            description:
+              "How many top search results to inspect for sold quantity (1-20, default 10). Each costs one extra API call.",
+          })
+        ),
+        minSoldQuantity: Type.Optional(
+          Type.Integer({
+            minimum: 0,
+            default: 1,
+            description:
+              "Only return listings with at least this many units sold (default 1). Pass 0 to include zero-sale listings in the output too.",
+          })
+        ),
+      }),
+      async execute(params, config) {
+        const cfg = authConfig(config);
+        const marketplaceId =
+          params.marketplaceId ??
+          (config as { defaultMarketplaceId?: string }).defaultMarketplaceId ??
+          "EBAY_US";
+        return getSalesVelocity(cfg, {
+          query: params.query,
+          condition: params.condition as ConditionFilter | undefined,
+          priceMin: params.priceMin,
+          priceMax: params.priceMax,
+          marketplaceId,
+          sampleSize: params.sampleSize,
+          minSoldQuantity: params.minSoldQuantity,
         });
       },
     }),

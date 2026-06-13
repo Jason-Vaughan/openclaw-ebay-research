@@ -34,6 +34,16 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 | Search what's currently for sale | `ebay_research_search_active_listings` | Filters: `sort` (`price_asc` / `price_desc` / `newly_listed` / `best_match`), `condition` (NEW/USED/CERTIFIED_REFURBISHED/...), `priceMin`, `priceMax`, `marketplaceId`, `limit`, `offset`. Returns title, price, condition, seller, `itemId`, and `itemWebUrl`. |
 | Get full detail for one listing | `ebay_research_get_item` | Pass the `itemId` (looks like `v1\|123\|0`) from a search result, or parse it from an eBay URL the operator pasted. Returns full description, all images, shipping options, return policy, item location. |
 
+### Sales velocity — what's actually selling (Browse API, no gating)
+
+| Need | Tool | Notes |
+| --- | --- | --- |
+| Which live listings have actually SOLD units, and at what price | `ebay_research_whats_selling` | One call does it all: searches live listings, inspects the top `sampleSize` (default 10) for eBay's `estimatedSoldQuantity`, returns only proven sellers (`minSoldQuantity`, default 1) sorted by units sold. Lead with `stats.medianPrice` (safest anchor) + `stats.totalSoldQuantity`; treat `stats.soldWeightedMeanPrice` as a secondary cross-check (it weights current ask by lifetime units, so one big listing can skew it). Price stats cover only the marketplace's primary currency — if `stats.mixedCurrencies` is true, off-currency listings were excluded. Costs ~`1 + sampleSize` API calls. Same filters as search (`condition`, `priceMin`, `priceMax`, `marketplaceId`). |
+
+This is the **interim sold-signal** available with the base scope we already have — distinct from both `search_active_listings` (asking prices, zero sales evidence) and `get_sold_history` (true historical sold transactions, gated by Marketplace Insights). It measures sales velocity on listings that are *still live*: "this listing is up at $89 and has already sold 47 units." Strongly prefer this over a plain search whenever the operator's question is about what something is *really* worth / *actually* selling for, not just what's listed.
+
+> **Always pass `priceMin`** (or a `condition`) when calling this for pricing research — `sort=price_asc` style junk (accessories, parts, keyword-stuffed listings) otherwise pollutes the sample. A floor of even \$50-\$100 dramatically cleans the signal.
+
 ### Categories (Taxonomy API)
 
 | Need | Tool | Notes |
@@ -73,6 +83,12 @@ When the tool returns results, the stats are **bucketed per currency**. Use `sta
 1. `ebay_research_search_active_listings(query=X, sort='best_match', limit=10)` — current asking prices.
 2. Summarize: lowest, highest, a rough middle, and **2-3 representative `itemWebUrl` links** so the operator can click through.
 3. If the operator also wants historical sold prices, follow up with `ebay_research_get_sold_history(query=X)` (which may return `disabled` — see Insights gating).
+
+### Buyer/seller-side: "what's X ACTUALLY selling for?" / "is X selling?" / "price X on real sales"
+
+1. `ebay_research_whats_selling(query=X, priceMin=<sensible floor>, condition=<if known>)`. The floor matters — without it the sample fills with junk.
+2. Lead with `stats.medianPrice` ("the middle of what's selling is about $X") and `stats.totalSoldQuantity` ("N units sold across the listings I checked"). Mention `stats.soldWeightedMeanPrice` only as a cross-check, and flag it if it diverges sharply from the median (a sign one high-volume listing is skewing it). Then surface the top 2-3 `items` by `estimatedSoldQuantity` with their price + `itemWebUrl`.
+3. Be precise about what this is: sales velocity on **active** listings priced at the **current** ask, not historical sold-transaction data. If the operator needs true sold history and `get_sold_history` is `disabled`, say so. If `stats.mixedCurrencies` is true, note that the stats cover only the primary currency.
 
 ### Buyer-side: "best deal on X" / "cheapest X" / "find me a cheap X"
 
