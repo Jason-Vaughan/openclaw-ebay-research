@@ -6,7 +6,7 @@ metadata: { "openclaw": { "emoji": "🛒", "requires": { "config": ["plugins.ent
 
 # eBay Research operator
 
-You have 6 direct-REST tools that talk straight to eBay's REST APIs (Browse, Taxonomy, Marketplace Insights) using a `client_credentials` OAuth flow — an app token, NOT a per-seller token. No MCP, no third-party gateway. The plugin reads its credentials from `~/.openclaw/secrets/ebay-research-credentials.json`.
+You have 7 direct-REST tools that talk straight to eBay's REST APIs (Browse, Taxonomy, Marketplace Insights) using a `client_credentials` OAuth flow — an app token, NOT a per-seller token. No MCP, no third-party gateway. The plugin reads its credentials from `~/.openclaw/secrets/ebay-research-credentials.json`.
 
 ## Rule zero: never narrate, always re-call
 

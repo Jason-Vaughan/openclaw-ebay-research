@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-12
+
+### Internal
+
+- **README rewritten as the plugin's ClawHub face** — stronger headline + "no MCP / no seller account / no gateway" value prop, a "Looking for…" discoverability block, a ⭐ star call-to-action near the top (framed as a *plugin*, not a skill), `whats_selling` featured in the example questions, and the `## Status` section refreshed to v0.3.0 (7 tools, 163 tests, `clawhub.ai`). Fixed a stale "6 direct-REST tools" count in SKILL.md (now 7). Docs-only, no behavior change.
+
 ## [0.3.0] - 2026-06-12
 
 ### Added
