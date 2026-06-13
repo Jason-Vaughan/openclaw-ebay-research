@@ -56,6 +56,23 @@ describe("description quality", () => {
     expect(desc).toContain("condition");
   });
 
+  it("search tool steers market-price questions away from cheapest-first (accessory guard)", () => {
+    const tools = collectTools();
+    const search = tools
+      .find((t) => t.name === "ebay_research_search_active_listings")!
+      .description.toLowerCase();
+    // Warns about accessory contamination + a price floor and points to the
+    // median tool for true pricing (regression: RTX PRO 6000 → $13 bracket bug).
+    expect(search).toContain("accessor");
+    expect(search).toContain("pricemin");
+    expect(search).toContain("whats_selling");
+
+    const ws = tools
+      .find((t) => t.name === "ebay_research_whats_selling")!
+      .description.toLowerCase();
+    expect(ws).toContain("what does x cost");
+  });
+
   it("get_item description references parsing an eBay URL", () => {
     const tools = collectTools();
     const get = tools.find((t) => t.name === "ebay_research_get_item");

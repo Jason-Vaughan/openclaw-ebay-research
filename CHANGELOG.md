@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-13
+
+### Fixed
+
+- **Pricing queries no longer surface accessories as "the price."** Asking
+  "what does X cost" for a high-value branded item (e.g. an RTX PRO 6000 GPU)
+  returned a cheapest-first search whose top rows were $13 brackets / fan
+  shrouds / cables that keyword-match the product name — the real ~$3,500+ card
+  sat below the fold. The data was always correct; the agent was steered wrong.
+  - **`search_active_listings` description** now separates "what does X cost /
+    what's it worth" (a MARKET-PRICE question — don't sort cheapest, apply a
+    `priceMin`/category, report a representative middle, prefer `whats_selling`)
+    from "find me the cheapest / a deal" (the only case for `sort='price_asc'`),
+    and warns explicitly about accessory contamination.
+  - **`whats_selling` description** now claims the "what does X cost / what's the
+    price of X" intent and is flagged as the go-to (median-led) pricing tool.
+  - **SKILL.md** adds **Rule three** ("cheapest ≠ the price; the cheapest result
+    is usually an accessory") and rewrites the "what does X sell for" recipe to
+    prefer `whats_selling`, apply a price floor, and sanity-check for
+    accessory-dominated result sets before answering.
+  - Regression tests in `descriptions.test.ts` + `skills.test.ts`.
+
 ## [0.3.2] - 2026-06-12
 
 ### Internal

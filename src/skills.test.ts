@@ -57,6 +57,14 @@ describe("SKILL.md core rules", () => {
     expect(skill.toLowerCase()).toContain("itemweburl");
     expect(skill.toLowerCase()).toContain("surface");
   });
+
+  it("teaches that cheapest is not the price (accessory-contamination rule)", () => {
+    const s = skill.toLowerCase();
+    expect(s).toContain("rule three");
+    expect(s).toContain("accessor"); // accessories pollute branded/high-value searches
+    expect(s).toContain("market price");
+    expect(s).toContain("pricemin"); // the defense
+  });
 });
 
 describe("SKILL.md buyer-side recipes (mandatory per build plan)", () => {

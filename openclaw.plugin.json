@@ -1,8 +1,8 @@
 {
   "id": "tangleclaw-ebay-research",
   "name": "TangleClaw eBay Research",
-  "description": "Read-only eBay market research for your OpenClaw agent — search live listings, fetch item detail, look up categories, query sold-listing history. Direct REST via client_credentials OAuth, app token only. No seller account, no user OAuth, no MCP server. Every result ships with a clickable itemWebUrl.",
-  "version": "0.3.2",
+  "description": "OpenClaw plugin for read-only eBay market research — search current listings, fetch item detail, look up sold-listing history (gated by eBay Marketplace Insights access). Direct REST via client_credentials OAuth (app token only — no seller account, no user OAuth, no MCP). Surfaces clickable itemWebUrl on every result.",
+  "version": "0.3.3",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true
@@ -14,7 +14,9 @@
     "type": "object",
     "required": [
       "credentialsPath",
-      "tokenPath"
+      "tokenPath",
+      "defaultMarketplaceId",
+      "enableInsights"
     ],
     "properties": {
       "credentialsPath": {
@@ -58,8 +60,8 @@
       "ebay_research_get_item",
       "ebay_research_whats_selling",
       "ebay_research_get_category_suggestions",
-      "ebay_research_get_category_subtree",
-      "ebay_research_get_sold_history"
+      "ebay_research_get_sold_history",
+      "ebay_research_get_category_subtree"
     ]
   }
 }

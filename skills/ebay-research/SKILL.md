@@ -25,6 +25,17 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 
 `search_active_listings` returns an `itemWebUrl` on every result — that's the canonical eBay URL the operator can open in their browser. **Whenever you describe a specific listing to the operator (in any format — bullet, sentence, table), include its `itemWebUrl`.** "$249 from seller jdoe1234" is much less useful than "$249 from seller jdoe1234 — `https://www.ebay.com/itm/...`". The links are the entire point of the tool returning them; never describe a price without the URL beside it.
 
+## Rule three: "what does X cost" is NOT "find the cheapest X" — and the cheapest result is usually an accessory
+
+When the operator asks **what something costs / is worth / is going for**, they want the **market price**, not the single lowest listing. Do not answer that question with a `sort='price_asc'` search and report the bottom row — for any branded or high-value item (GPUs, cameras, phones, consoles, laptops, instruments...), the cheapest keyword matches are almost always **accessories, parts, brackets, cables, shrouds, or manuals** that stuff the product name into their title. Reporting "$13.50" for an RTX PRO 6000 (a bracket) when the card is ~$3,500+ is the failure this rule prevents.
+
+For a "what does X cost / what's it worth" question:
+1. **Prefer `ebay_research_whats_selling`** — it leads with the **median** of what's actually selling, which is the right anchor for "the price."
+2. If you use `search_active_listings`, **apply a `priceMin` floor** sized to the item (a few hundred for electronics, **thousands** for a high-end GPU/workstation) and/or a `categoryIds` filter, and report a **representative middle-of-pack** figure — never the floor.
+3. Reserve `sort='price_asc'` (cheapest-first, no/low floor) for when the operator **explicitly** wants the cheapest one / a deal / "find me a cheap X."
+
+If your first result set is dominated by sub-$100 accessories for an item you know is expensive, that's the contamination signal — re-run with a `priceMin` before answering.
+
 ## When to use which tool
 
 ### Live listings (Browse API)
@@ -78,11 +89,15 @@ When the tool returns results, the stats are **bucketed per currency**. Use `sta
 
 ## Multi-step recipes
 
-### Buyer-side: "what does X sell for on eBay?" / "what's X going for?"
+### Buyer-side: "what does X sell for on eBay?" / "what's X going for?" / "what's the price of X?"
 
-1. `ebay_research_search_active_listings(query=X, sort='best_match', limit=10)` — current asking prices.
-2. Summarize: lowest, highest, a rough middle, and **2-3 representative `itemWebUrl` links** so the operator can click through.
-3. If the operator also wants historical sold prices, follow up with `ebay_research_get_sold_history(query=X)` (which may return `disabled` — see Insights gating).
+This is a **market-price** question — see Rule three. Do NOT lead with a cheapest-first search.
+
+1. **Prefer `ebay_research_whats_selling(query=X, priceMin=<sensible floor>)`** — lead your answer with `stats.medianPrice`.
+2. If you use `search_active_listings` instead, pass `sort='best_match'` AND a `priceMin` floor sized to the item (for an expensive item like a high-end GPU, a floor in the thousands), so accessories don't pollute the result. Then report a **representative middle** price + a typical listing, plus the range — **never report the single lowest row as "the price"** (it's usually an accessory).
+3. **Sanity-check the result:** if the top rows are cheap accessories/parts for an item you know is expensive, re-run with a higher `priceMin` before answering.
+4. Surface **2-3 representative `itemWebUrl` links** so the operator can click through.
+5. If the operator also wants historical sold prices, follow up with `ebay_research_get_sold_history(query=X)` (which may return `disabled` — see Insights gating).
 
 ### Buyer/seller-side: "what's X ACTUALLY selling for?" / "is X selling?" / "price X on real sales"
 
