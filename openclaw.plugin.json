@@ -56,6 +56,7 @@
       "ebay_research_auth_status",
       "ebay_research_search_active_listings",
       "ebay_research_get_item",
+      "ebay_research_whats_selling",
       "ebay_research_get_category_suggestions",
       "ebay_research_get_category_subtree",
       "ebay_research_get_sold_history"

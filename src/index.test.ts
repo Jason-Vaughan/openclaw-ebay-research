@@ -39,6 +39,21 @@ describe("plugin surface", () => {
     ]);
   });
 
+  it("manifest contracts.tools exactly matches the registered tools (drift guard)", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const manifest = JSON.parse(
+      await readFile(join(here, "..", "openclaw.plugin.json"), "utf8")
+    ) as { contracts?: { tools?: string[] } };
+    const declared = [...(manifest.contracts?.tools ?? [])].sort();
+    const registered = collectTools()
+      .map((t) => t.name)
+      .sort();
+    expect(declared).toEqual(registered);
+  });
+
   it("every tool has a label, description, and parameters schema", () => {
     const tools = collectTools();
     for (const tool of tools) {
