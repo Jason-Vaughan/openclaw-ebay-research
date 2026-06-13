@@ -1,21 +1,33 @@
 # @tangleclaw/openclaw-ebay-research
 
-OpenClaw plugin for **read-only eBay market research** — search current listings, fetch item detail, look up categories, query sold-listing history. Direct REST via the `client_credentials` OAuth flow (app token only — no seller account, no user OAuth, no MCP, no third-party gateway).
+**Read-only eBay market research for your [OpenClaw](https://openclaw.ai) agent** — search live listings, see what's *actually selling*, fetch item detail, look up the right category, and (with eBay Insights access) pull true sold-price history. Direct REST via the `client_credentials` OAuth flow: an app token only. **No seller account. No user OAuth. No MCP server. No third-party gateway.**
 
-Built for OpenClaw agents that need to answer questions like:
+> ⭐ **Find this plugin useful?** If `openclaw-ebay-research` saves you time, please **star it** (the ⭐ at the top of this ClawHub page) — stars help other resellers and OpenClaw operators discover it and keep it maintained. Thank you!
 
-- *"What does a Nikon D750 sell for on eBay?"*
-- *"What's the link to the best deal on a Nikon D750?"*
-- *"Find me a used Nikon D750 under $500."*
-- *"Tell me about this eBay listing: https://www.ebay.com/itm/..."*
+## Looking for...
+
+- An OpenClaw plugin to **check what something sells for on eBay**? → yes, this.
+- A way to see **what's *actually selling*** — real sales velocity, not just asking prices? → yes, the `whats_selling` tool.
+- **Sold-price history** for an item over the last 90 days? → yes (once eBay grants you Marketplace Insights access).
+- To **find the cheapest / best-deal** listing, with a clickable link? → yes.
+- The **right eBay category** for something you're about to list? → yes (taxonomy lookup — feeds the sister seller plugin's `create_offer`).
+- Full **detail on a specific listing**, or a pasted eBay URL? → yes.
+- An eBay research plugin that talks **straight to eBay's REST API** — no MCP, no middleman SaaS? → yes, this is it.
+
+Built for agents that need to answer questions like:
+
+- *"What are used Nikon D750 bodies **actually selling** for?"* ← sales-velocity signal, units sold + price
+- *"What does a Nikon D750 sell for on eBay right now?"*
+- *"Find me a used Nikon D750 under $500 — cheapest first."*
+- *"Tell me about this listing: https://www.ebay.com/itm/..."*
 - *"What did Nikon D750s actually sell for in the last 90 days?"* (gated by Insights access)
-- *"What category should this go in on eBay?"* (taxonomy lookup — useful for seller plugins too)
+- *"What category should this go in on eBay?"*
 
-Every search result includes the canonical eBay `itemWebUrl`, so the agent can hand the operator clickable links — not just price text.
+Every result ships with the canonical eBay `itemWebUrl`, so the agent hands you clickable links — not just price text.
 
 ## Status
 
-**v0.2.3** — full read-only tool surface: auth status, active-listing search, item detail, category suggestions + subtree, and the gated sold-history tool (148 unit tests; hardened through independent Critic review). Published on [ClawHub](https://clawhub.io) as `@tangleclaw/openclaw-ebay-research`. Deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place). **Live-validated against eBay production 2026-06-12.**
+**v0.3.0 — production-ready, 7 tools.** Auth status, active-listing search, **sales-velocity (`whats_selling`)**, item detail, category suggestions + subtree, and the gated sold-history tool. 163 unit tests; every release hardened through independent Critic review. Published on [ClawHub](https://clawhub.ai) as `@tangleclaw/openclaw-ebay-research` and **live-validated against eBay production (2026-06-12)**. Deploys in "demo mode" without keys (tools register but return a clear credentials-not-configured error until you drop a credentials JSON in place).
 
 ## Tools
 
